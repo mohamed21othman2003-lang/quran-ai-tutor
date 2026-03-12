@@ -55,6 +55,19 @@ QUIZ_PROMPT = ChatPromptTemplate.from_messages([
     ("human", _QUIZ_SYSTEM),
 ])
 
+_EMPTY_KB_MSG = {
+    "en": (
+        "The knowledge base is currently empty. "
+        "Please run `python -m src.rag.pipeline` to ingest the Tajweed knowledge files, "
+        "then restart the server."
+    ),
+    "ar": (
+        "قاعدة البيانات المعرفية فارغة حالياً. "
+        "يرجى تشغيل `python -m src.rag.pipeline` لاستيعاب ملفات قواعد التجويد، "
+        "ثم إعادة تشغيل الخادم."
+    ),
+}
+
 
 # ------------------------------------------------------------------
 # Agent
@@ -94,19 +107,30 @@ class TutorAgent:
     # Public methods
     # ------------------------------------------------------------------
 
-    async def answer(self, question: str) -> dict[str, Any]:
+    async def answer(self, question: str, language: str = "en") -> dict[str, Any]:
         """Run the QA chain and return answer + source chunks."""
-        chain, retriever = self._build_qa_chain()
+        if not self.rag.is_populated():
+            return {
+                "answer": _EMPTY_KB_MSG.get(language, _EMPTY_KB_MSG["en"]),
+                "sources": [],
+            }
 
-        # Retrieve sources separately for the response
+        chain, retriever = self._build_qa_chain()
         docs = await retriever.ainvoke(question)
         sources = [doc.page_content for doc in docs]
-
         answer_text = await chain.ainvoke(question)
         return {"answer": answer_text, "sources": sources}
 
     async def generate_quiz(self, rule: str, language: str = "en") -> dict[str, Any]:
         """Generate a multiple-choice quiz for the given Tajweed rule."""
+        if not self.rag.is_populated():
+            return {
+                "question": _EMPTY_KB_MSG.get(language, _EMPTY_KB_MSG["en"]),
+                "options": [],
+                "correct_index": 0,
+                "explanation": "",
+            }
+
         docs = self.rag.retrieve(rule)
         context = "\n\n".join(d.page_content for d in docs)
         lang_label = "Arabic" if language == "ar" else "English"

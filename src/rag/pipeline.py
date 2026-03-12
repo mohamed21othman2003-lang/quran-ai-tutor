@@ -27,6 +27,8 @@ class RAGPipeline:
             openai_api_key=settings.openai_api_key,
         )
         self.vector_store: Chroma | None = None
+        # Ensure the persist directory exists so ChromaDB never fails on a missing path
+        Path(settings.chroma_persist_dir).mkdir(parents=True, exist_ok=True)
 
     # ------------------------------------------------------------------
     # Ingestion
@@ -110,44 +112,64 @@ class RAGPipeline:
             )
         return self.vector_store
 
+    def is_populated(self) -> bool:
+        """Return True if the vector store contains at least one document."""
+        try:
+            store = self.get_vector_store()
+            return store._collection.count() > 0
+        except Exception:
+            return False
+
     def retrieve(self, query: str) -> List[Document]:
-        """Return top-K most relevant chunks for *query*."""
-        store = self.get_vector_store()
-        results = store.similarity_search(query, k=settings.top_k)
-        logger.debug("Retrieved %d chunks for query: %.80s", len(results), query)
-        return results
+        """Return top-K most relevant chunks for *query*.
+
+        Returns an empty list (instead of raising) when the store is empty
+        or an error occurs, so callers can handle the no-context case gracefully.
+        """
+        if not self.is_populated():
+            logger.warning("Vector store is empty — skipping retrieval for query: %.80s", query)
+            return []
+        try:
+            store = self.get_vector_store()
+            results = store.similarity_search(query, k=settings.top_k)
+            logger.debug("Retrieved %d chunks for query: %.80s", len(results), query)
+            return results
+        except Exception:
+            logger.exception("Retrieval failed for query: %.80s", query)
+            return []
 
     def get_all_rule_names(self) -> List[str]:
         """Return unique rule names from ChromaDB.
 
-        Reads the ``rule_name`` metadata field when present (set on re-ingestion),
-        and falls back to parsing ``rule_name:`` lines from chunk text so that
-        existing data ingested without metadata still works.
+        Returns an empty list when the store is empty or unavailable.
         """
-        store = self.get_vector_store()
-        collection = store._collection
-        items = collection.get(include=["metadatas", "documents"])
+        if not self.is_populated():
+            logger.warning("Vector store is empty — no rule names available.")
+            return []
+        try:
+            store = self.get_vector_store()
+            collection = store._collection
+            items = collection.get(include=["metadatas", "documents"])
 
-        seen: set = set()
-        names: List[str] = []
+            seen: set = set()
+            names: List[str] = []
 
-        for meta, text in zip(
-            items.get("metadatas", []), items.get("documents", [])
-        ):
-            # Prefer explicit metadata
-            rule = (meta or {}).get("rule_name")
+            for meta, text in zip(
+                items.get("metadatas", []), items.get("documents", [])
+            ):
+                rule = (meta or {}).get("rule_name")
+                if not rule and text:
+                    match = re.search(r"^rule_name:\s*(.+)$", text, re.MULTILINE)
+                    if match:
+                        rule = match.group(1).strip()
+                if rule and rule not in seen:
+                    names.append(rule)
+                    seen.add(rule)
 
-            # Fall back: parse from chunk text
-            if not rule and text:
-                match = re.search(r"^rule_name:\s*(.+)$", text, re.MULTILINE)
-                if match:
-                    rule = match.group(1).strip()
-
-            if rule and rule not in seen:
-                names.append(rule)
-                seen.add(rule)
-
-        return sorted(names)
+            return sorted(names)
+        except Exception:
+            logger.exception("Failed to read rule names from vector store.")
+            return []
 
 
 # ------------------------------------------------------------------

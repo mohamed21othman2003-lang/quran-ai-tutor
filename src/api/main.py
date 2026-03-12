@@ -50,9 +50,22 @@ async def lifespan(app: FastAPI):
     logger.info("Starting up — initialising database…")
     await init_db()
     logger.info("Starting up — loading RAG pipeline…")
-    rag = RAGPipeline()
-    agent = TutorAgent(rag)
-    logger.info("Ready.")
+    try:
+        rag = RAGPipeline()
+        agent = TutorAgent(rag)
+        if rag.is_populated():
+            logger.info("Ready. Vector store is populated.")
+        else:
+            logger.warning(
+                "Ready — but vector store is EMPTY. "
+                "Run `python -m src.rag.pipeline` to ingest knowledge files. "
+                "Chat and quiz endpoints will return an informational message until then."
+            )
+    except Exception:
+        logger.exception(
+            "Failed to initialise RAG pipeline — server will start without AI features. "
+            "Check OPENAI_API_KEY and ChromaDB configuration."
+        )
     yield
     logger.info("Shutting down.")
 
@@ -141,7 +154,7 @@ async def chat(request: ChatRequest) -> Any:
     if agent is None:
         raise HTTPException(status_code=503, detail="Agent not initialised.")
     try:
-        result = await agent.answer(request.question)
+        result = await agent.answer(request.question, language=request.language)
     except Exception as exc:
         logger.exception("Error in /chat")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
