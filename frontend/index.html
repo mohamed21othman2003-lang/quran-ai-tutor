@@ -523,6 +523,175 @@
     html[dir="rtl"] .sources-box     { border-left: none; border-right: 3px solid var(--green-400); }
     html[dir="rtl"] .explanation-box { border-left: none; border-right: 4px solid var(--green-500); }
     html[dir="rtl"] body { font-family: var(--font-ar); }
+    /* ══════════════════════════════════════════════════════════
+       VOICE TAB
+    ══════════════════════════════════════════════════════════ */
+    .voice-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      box-shadow: var(--shadow);
+    }
+    .voice-card .field { width: 100%; }
+    .voice-card textarea {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: .97rem;
+      font-family: var(--font-ar);
+      resize: vertical;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .field-hint { font-size:.78rem; color: var(--text-muted); margin-top:4px; }
+
+    /* Record / Stop controls */
+    .voice-controls { display:flex; gap:16px; align-items:center; justify-content:center; }
+
+    .record-btn {
+      position: relative;
+      width: 80px; height: 80px;
+      border-radius: 50%;
+      border: none;
+      background: var(--green-600);
+      color: #fff;
+      font-size: 2rem;
+      cursor: pointer;
+      display: flex; align-items:center; justify-content:center;
+      box-shadow: 0 4px 16px rgba(5,150,105,.35);
+      transition: background .2s, transform .1s;
+    }
+    .record-btn:hover { background: var(--green-700); transform: scale(1.05); }
+    .record-btn:active { transform: scale(.96); }
+    .record-btn.recording { background: #ef4444; box-shadow: 0 4px 16px rgba(239,68,68,.4); }
+
+    /* Pulse ring when recording */
+    .record-ring {
+      position: absolute; inset: -6px;
+      border-radius: 50%;
+      border: 3px solid transparent;
+      pointer-events: none;
+    }
+    .record-btn.recording .record-ring {
+      border-color: rgba(239,68,68,.5);
+      animation: pulse-ring 1.4s ease-out infinite;
+    }
+    @keyframes pulse-ring {
+      0%   { transform: scale(1);   opacity: 1; }
+      80%  { transform: scale(1.5); opacity: 0; }
+      100% { transform: scale(1.5); opacity: 0; }
+    }
+
+    .stop-btn {
+      width: 52px; height: 52px;
+      border-radius: 50%;
+      border: 2px solid #ef4444;
+      background: #fff;
+      color: #ef4444;
+      font-size: 1.4rem;
+      cursor: pointer;
+      display: flex; align-items:center; justify-content:center;
+      transition: background .15s;
+    }
+    .stop-btn:hover { background: #fff5f5; }
+
+    .voice-status {
+      font-size: .88rem;
+      color: var(--text-muted);
+      min-height: 1.2em;
+      text-align: center;
+    }
+    .voice-status.recording { color: #ef4444; font-weight: 600; }
+    .voice-status.processing { color: var(--green-700); }
+
+    /* Results */
+    .voice-result {
+      margin-top: 8px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: var(--shadow);
+    }
+    .result-row {
+      display: flex;
+      gap: 24px;
+      align-items: flex-start;
+    }
+    @media (max-width: 520px) { .result-row { flex-direction: column; align-items: center; } }
+
+    /* Score circle */
+    .score-circle-wrap {
+      position: relative;
+      width: 80px; height: 80px;
+      flex-shrink: 0;
+    }
+    .score-svg { width: 80px; height: 80px; transform: rotate(-90deg); }
+    .score-track { fill: none; stroke: var(--green-100); stroke-width: 8; }
+    .score-fill  { fill: none; stroke: var(--green-500); stroke-width: 8;
+                   stroke-linecap: round; transition: stroke-dashoffset .6s ease, stroke .4s; }
+    .score-inner {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+    }
+    .score-pct   { font-size: .95rem; font-weight: 700; color: var(--text); line-height:1; }
+    .score-badge { font-size: .62rem; color: var(--text-muted); margin-top:2px; }
+
+    /* Transcription */
+    .transcription-wrap { flex: 1; min-width: 0; }
+    .result-label { font-size: .72rem; font-weight: 700; letter-spacing:.06em;
+                    color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px; }
+    .transcription-text {
+      font-family: var(--font-ar);
+      font-size: 1.1rem;
+      line-height: 1.7;
+      color: var(--text);
+      word-break: break-word;
+      background: var(--green-50);
+      padding: 8px 12px;
+      border-radius: 8px;
+    }
+
+    /* Errors */
+    #voice-errors-wrap { margin-top: 16px; }
+    .error-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      margin-bottom: 8px;
+      font-size: .9rem;
+    }
+    .error-item.substitution { background: #fff7ed; border-left: 3px solid #f97316; }
+    .error-item.missing_word { background: #fff5f5; border-left: 3px solid #ef4444; }
+    .error-item.extra_word   { background: #fefce8; border-left: 3px solid #eab308; }
+    .error-icon  { font-size: 1.1rem; margin-top:1px; flex-shrink:0; }
+    .error-body  { flex:1; }
+    .error-type  { font-weight: 700; font-size: .78rem; letter-spacing:.04em;
+                   text-transform: uppercase; margin-bottom:3px; color: var(--text-muted); }
+    .error-words { font-family: var(--font-ar); font-size: 1rem; direction: rtl; }
+    .error-words .got { color: #ef4444; }
+    .error-words .exp { color: var(--green-700); }
+
+    .voice-success {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--green-50);
+      border: 1px solid var(--green-400);
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-top: 16px;
+      font-weight: 600;
+      color: var(--green-800);
+      font-size: 1rem;
+    }
   </style>
 </head>
 <body>
@@ -629,6 +798,9 @@
     <button class="tab-btn" onclick="switchTab('progress')" id="tab-progress">
       <span class="icon">📊</span><span class="tab-label" id="lbl-progress">Progress</span>
     </button>
+    <button class="tab-btn" onclick="switchTab('voice')" id="tab-voice">
+      <span class="icon">🎙️</span><span class="tab-label" id="lbl-voice">Voice</span>
+    </button>
   </div>
 
   <!-- ── Chat Panel ── -->
@@ -711,6 +883,76 @@
       <div class="history-list" id="history-list"></div>
     </div>
   </div>
+  <!-- ── Voice Panel ── -->
+  <div class="panel" id="panel-voice">
+    <div class="panel-header">
+      <div>
+        <h2 id="voice-heading">Voice Recitation Check</h2>
+        <p id="voice-sub">Record yourself reciting and get instant Tajweed feedback</p>
+      </div>
+    </div>
+
+    <div class="voice-card">
+      <!-- Expected ayah input -->
+      <div class="field">
+        <label id="voice-expected-lbl">Expected Ayah (optional)</label>
+        <textarea id="voice-expected" rows="2" dir="auto"
+          placeholder="بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ"></textarea>
+        <p class="field-hint" id="voice-hint">If provided, your recitation will be compared word-by-word.</p>
+      </div>
+
+      <!-- Record controls -->
+      <div class="voice-controls">
+        <button class="record-btn" id="record-btn" onclick="startRecording()">
+          <span class="mic-icon">🎙️</span>
+          <span class="record-ring"></span>
+        </button>
+        <button class="stop-btn hidden" id="stop-btn" onclick="stopRecording()">
+          <span>⏹</span>
+        </button>
+      </div>
+      <p class="voice-status" id="voice-status-lbl" id="voice-status"></p>
+
+      <!-- Audio playback -->
+      <audio id="voice-playback" controls class="hidden" style="width:100%;margin-top:8px;border-radius:8px"></audio>
+    </div>
+
+    <!-- Results -->
+    <div class="voice-result hidden" id="voice-result">
+      <div class="result-row">
+        <!-- Score circle -->
+        <div class="score-circle-wrap">
+          <svg class="score-svg" viewBox="0 0 80 80">
+            <circle class="score-track" cx="40" cy="40" r="34"/>
+            <circle class="score-fill" id="score-arc" cx="40" cy="40" r="34"
+              stroke-dasharray="213.6" stroke-dashoffset="213.6"/>
+          </svg>
+          <div class="score-inner">
+            <span class="score-pct" id="score-pct">0%</span>
+            <span class="score-badge" id="score-badge"></span>
+          </div>
+        </div>
+        <!-- Transcribed text -->
+        <div class="transcription-wrap">
+          <div class="result-label" id="transcribed-lbl">Transcribed</div>
+          <div class="transcription-text" id="transcribed-text" dir="rtl"></div>
+          <div class="result-label" id="expected-out-lbl" style="margin-top:10px">Expected</div>
+          <div class="transcription-text" id="expected-out-text" dir="rtl" style="opacity:.7"></div>
+        </div>
+      </div>
+
+      <!-- Errors list -->
+      <div id="voice-errors-wrap" class="hidden">
+        <div class="section-title" id="errors-title">RECITATION ERRORS</div>
+        <div id="voice-errors-list"></div>
+      </div>
+
+      <!-- No-errors message -->
+      <div class="voice-success hidden" id="voice-success">
+        <span>✅</span> <span id="voice-success-msg">Excellent recitation!</span>
+      </div>
+    </div>
+  </div>
 </main>
 
 <div id="toast"></div>
@@ -761,6 +1003,22 @@ const i18n = {
     progEmpty: 'Start chatting or take a quiz to see your progress here.',
     attempts: 'attempt', attemptsP: 'attempts',
     scoreGood: 'Good', scoreFair: 'Fair', scoreWeak: 'Needs work',
+    voice: 'Voice',
+    voiceHeading: 'Voice Recitation Check',
+    voiceSub: 'Record yourself reciting and get instant Tajweed feedback',
+    voiceExpectedLbl: 'Expected Ayah (optional)',
+    voiceHint: 'If provided, your recitation will be compared word-by-word.',
+    voiceIdle: 'Tap the mic to start recording',
+    voiceRecording: '🔴 Recording… tap stop when done',
+    voiceProcessing: '⏳ Transcribing…',
+    voiceNoMic: 'Microphone access denied. Please allow microphone in browser settings.',
+    voiceError: 'Could not process audio. Please try again.',
+    transcribedLbl: 'Transcribed', expectedOutLbl: 'Expected',
+    errorsTitle: 'RECITATION ERRORS',
+    errSubstitution: 'Substitution', errMissing: 'Missing word', errExtra: 'Extra word',
+    errExpected: 'Expected:', errGot: 'Got:',
+    voiceSuccess: 'Excellent recitation! No errors found.',
+    scoreLabelGood: 'Match', scoreLabelWeak: 'Match',
   },
   ar: {
     appTitle: 'مساعد تعلّم التجويد',
@@ -789,6 +1047,22 @@ const i18n = {
     progEmpty: 'ابدأ المحادثة أو أجرِ اختباراً لرؤية تقدّمك هنا.',
     attempts: 'محاولة', attemptsP: 'محاولات',
     scoreGood: 'جيد', scoreFair: 'مقبول', scoreWeak: 'يحتاج تحسين',
+    voice: 'صوتي',
+    voiceHeading: 'فحص التلاوة الصوتية',
+    voiceSub: 'سجّل تلاوتك واحصل على تغذية راجعة فورية',
+    voiceExpectedLbl: 'الآية المتوقعة (اختياري)',
+    voiceHint: 'عند الإدخال، ستُقارَن تلاوتك كلمةً بكلمة.',
+    voiceIdle: 'انقر على الميكروفون لبدء التسجيل',
+    voiceRecording: '🔴 جارٍ التسجيل… انقر إيقاف عند الانتهاء',
+    voiceProcessing: '⏳ جارٍ النسخ…',
+    voiceNoMic: 'تم رفض الوصول إلى الميكروفون. يرجى السماح به من إعدادات المتصفح.',
+    voiceError: 'تعذّرت معالجة الصوت. يرجى المحاولة مجدداً.',
+    transcribedLbl: 'النص المنسوخ', expectedOutLbl: 'المتوقع',
+    errorsTitle: 'أخطاء التلاوة',
+    errSubstitution: 'إبدال', errMissing: 'كلمة مفقودة', errExtra: 'كلمة زائدة',
+    errExpected: 'المتوقع:', errGot: 'المُلفوظ:',
+    voiceSuccess: 'تلاوة ممتازة! لا أخطاء.',
+    scoreLabelGood: 'تطابق', scoreLabelWeak: 'تطابق',
   }
 };
 
@@ -831,6 +1105,20 @@ function applyI18n() {
   $('prog-weak-title').textContent = t('weakTitle');
   $('prog-hist-title').textContent = t('histTitle');
   $('prog-empty').textContent    = t('progEmpty');
+  $('lbl-voice').textContent     = t('voice');
+  $('voice-heading').textContent = t('voiceHeading');
+  $('voice-sub').textContent     = t('voiceSub');
+  $('voice-expected-lbl').textContent = t('voiceExpectedLbl');
+  $('voice-hint').textContent    = t('voiceHint');
+  $('transcribed-lbl').textContent  = t('transcribedLbl');
+  $('expected-out-lbl').textContent = t('expectedOutLbl');
+  $('errors-title').textContent  = t('errorsTitle');
+  $('voice-success-msg').textContent = t('voiceSuccess');
+  // Reset status label to idle text if not currently recording
+  const statusEl = $('voice-status-lbl');
+  if (statusEl && !statusEl.classList.contains('recording') && !statusEl.classList.contains('processing')) {
+    statusEl.textContent = t('voiceIdle');
+  }
 
   // Auth inputs direction
   ['login-username','login-password','reg-username','reg-password','reg-confirm'].forEach(id => {
@@ -1310,6 +1598,143 @@ function showToast(msg) {
   el.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('show'), 3500);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Voice — MediaRecorder + /api/v1/voice/check
+═══════════════════════════════════════════════════════════ */
+let mediaRecorder = null;
+let audioChunks   = [];
+let micStream     = null;
+
+function setVoiceStatus(msgKey, cls = '') {
+  const el = document.getElementById('voice-status-lbl');
+  el.textContent = t(msgKey);
+  el.className = 'voice-status' + (cls ? ' ' + cls : '');
+}
+
+async function startRecording() {
+  // Reset result
+  document.getElementById('voice-result').classList.add('hidden');
+  document.getElementById('voice-playback').classList.add('hidden');
+  audioChunks = [];
+
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch {
+    setVoiceStatus('voiceNoMic');
+    return;
+  }
+
+  // Pick a supported MIME type — WebM is widely supported; fallback to default
+  const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', '']
+    .find(m => m === '' || MediaRecorder.isTypeSupported(m));
+
+  mediaRecorder = new MediaRecorder(micStream, mimeType ? { mimeType } : {});
+  mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+  mediaRecorder.onstop = onRecordingStop;
+  mediaRecorder.start(250); // collect chunks every 250 ms
+
+  // Update UI
+  document.getElementById('record-btn').classList.add('recording', 'hidden');
+  document.getElementById('stop-btn').classList.remove('hidden');
+  setVoiceStatus('voiceRecording', 'recording');
+}
+
+function stopRecording() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+  micStream?.getTracks().forEach(t => t.stop());
+  document.getElementById('record-btn').classList.remove('recording', 'hidden');
+  document.getElementById('stop-btn').classList.add('hidden');
+  setVoiceStatus('voiceProcessing', 'processing');
+}
+
+async function onRecordingStop() {
+  const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+
+  // Show playback
+  const player = document.getElementById('voice-playback');
+  player.src = URL.createObjectURL(blob);
+  player.classList.remove('hidden');
+
+  // Send to API
+  const expectedText = document.getElementById('voice-expected').value.trim();
+  const form = new FormData();
+  form.append('audio', blob, 'recording.webm');
+  if (expectedText) form.append('expected_text', expectedText);
+
+  try {
+    const res = await fetch(API + '/api/v1/voice/check', { method: 'POST', body: form });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({detail: res.statusText}))).detail);
+    const data = await res.json();
+    renderVoiceResult(data);
+  } catch (err) {
+    setVoiceStatus('voiceError');
+    showToast(err.message || t('voiceError'));
+  }
+}
+
+function renderVoiceResult(data) {
+  setVoiceStatus('voiceIdle');
+
+  // Score
+  const pct = Math.round(data.match_score * 100);
+  const circumference = 213.6; // 2π×34
+  const offset = circumference - (pct / 100) * circumference;
+  const color = pct >= 85 ? '#10b981' : pct >= 50 ? '#f59e0b' : '#ef4444';
+
+  const arc = document.getElementById('score-arc');
+  arc.style.strokeDashoffset = offset;
+  arc.style.stroke = color;
+
+  document.getElementById('score-pct').textContent = pct + '%';
+  document.getElementById('score-pct').style.color = color;
+  document.getElementById('score-badge').textContent = t('scoreLabelGood');
+
+  // Texts
+  document.getElementById('transcribed-text').textContent = data.transcribed_text || '—';
+  const expOut = document.getElementById('expected-out-text');
+  expOut.textContent = data.expected_text || '';
+  expOut.closest('.transcription-wrap').querySelector('#expected-out-lbl').style.display =
+    data.expected_text ? '' : 'none';
+  expOut.style.display = data.expected_text ? '' : 'none';
+
+  // Errors
+  const errWrap = document.getElementById('voice-errors-wrap');
+  const errList = document.getElementById('voice-errors-list');
+  const successEl = document.getElementById('voice-success');
+
+  errList.innerHTML = '';
+  if (data.errors && data.errors.length > 0) {
+    errWrap.classList.remove('hidden');
+    successEl.classList.add('hidden');
+    data.errors.forEach(err => {
+      const icons = { substitution: '↔️', missing_word: '❌', extra_word: '➕' };
+      const labels = {
+        substitution: t('errSubstitution'),
+        missing_word: t('errMissing'),
+        extra_word:   t('errExtra'),
+      };
+      const item = document.createElement('div');
+      item.className = 'error-item ' + err.type;
+      item.innerHTML = `
+        <div class="error-icon">${icons[err.type] || '⚠️'}</div>
+        <div class="error-body">
+          <div class="error-type">${labels[err.type] || err.type}</div>
+          <div class="error-words">
+            ${err.expected ? `<span>${t('errExpected')} </span><span class="exp">${err.expected}</span>` : ''}
+            ${err.got      ? `<span> ${t('errGot')} </span><span class="got">${err.got}</span>` : ''}
+          </div>
+        </div>`;
+      errList.appendChild(item);
+    });
+  } else {
+    errWrap.classList.add('hidden');
+    successEl.classList.remove('hidden');
+  }
+
+  document.getElementById('voice-result').classList.remove('hidden');
+  document.getElementById('voice-result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 /* ═══════════════════════════════════════════════════════════
