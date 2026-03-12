@@ -35,6 +35,11 @@ FastAPI backend for an AI-powered Tajweed tutor. Uses GPT-4o for reasoning, Chro
 | POST | /api/v1/progress | Bearer JWT | Save learning event (chat/quiz + score) |
 | GET | /api/v1/progress/{user_id} | Bearer JWT | Get history and weak rules |
 
+### Admin
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| POST | /api/v1/admin/ingest | X-Admin-Key header | Re-ingest knowledge base into ChromaDB |
+
 ## Project Structure
 ```
 quran-ai-mvp/
@@ -98,3 +103,4 @@ python -m src.rag.pipeline
 | JWT_SECRET | change-me | Secret key for JWT signing |
 | JWT_EXPIRE_MINUTES | 1440 | Token lifetime (default 24h) |
 | DB_PATH | data/quran_tutor.db | SQLite file path |
+| ADMIN_API_KEY | change-me-admin-key | Key for POST /api/v1/admin/ingest |

@@ -9,14 +9,16 @@ POST /api/v1/auth/register     — Create account, returns JWT
 POST /api/v1/auth/login        — Authenticate, returns JWT
 POST /api/v1/progress          — Save a learning event (auth required)
 GET  /api/v1/progress/{uid}    — Get user history + weak rules (auth required)
+POST /api/v1/admin/ingest      — Re-ingest knowledge base into ChromaDB (admin key required)
 """
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -139,6 +141,12 @@ class QuizResponse(BaseModel):
     explanation: str
 
 
+class IngestResponse(BaseModel):
+    message: str
+    chunks_indexed: int
+    rules_found: int
+
+
 # ------------------------------------------------------------------
 # Endpoints
 # ------------------------------------------------------------------
@@ -193,3 +201,36 @@ async def generate_quiz(request: QuizRequest) -> Any:
         logger.exception("Error in /quiz")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return QuizResponse(**quiz)
+
+
+@app.post(
+    "/api/v1/admin/ingest",
+    response_model=IngestResponse,
+    summary="Re-ingest knowledge base",
+    tags=["Admin"],
+)
+async def ingest(x_admin_key: str = Header(..., alias="X-Admin-Key")) -> Any:
+    """Trigger a full re-ingestion of the knowledge base into ChromaDB.
+
+    Requires the ``X-Admin-Key`` header to match the ``ADMIN_API_KEY`` env var.
+    Ingestion runs in a thread pool so it does not block the event loop.
+    """
+    if x_admin_key != settings.admin_api_key:
+        raise HTTPException(status_code=403, detail="Invalid admin key.")
+    if rag is None:
+        raise HTTPException(status_code=503, detail="RAG pipeline not initialised.")
+    try:
+        logger.info("Admin triggered re-ingestion.")
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, rag.ingest)
+        rules = rag.get_all_rule_names()
+        chunks = rag.get_vector_store()._collection.count()
+        logger.info("Re-ingestion complete: %d chunks, %d rules.", chunks, len(rules))
+        return IngestResponse(
+            message="Ingestion complete.",
+            chunks_indexed=chunks,
+            rules_found=len(rules),
+        )
+    except Exception as exc:
+        logger.exception("Error in /admin/ingest")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc

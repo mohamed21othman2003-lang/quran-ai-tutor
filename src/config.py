@@ -18,5 +18,8 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 60 * 24  # 24 hours
     db_path: str = "data/quran_tutor.db"
 
+    # Admin
+    admin_api_key: str = "change-me-admin-key"
+
 
 settings = Settings()
