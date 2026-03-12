@@ -24,3 +24,9 @@ bcrypt>=4.0.0
 
 # Utilities
 tiktoken==0.8.0
+
+# Voice — Quran ASR (tarteel-ai/whisper-base-ar-quran)
+# torch is installed separately in nixpacks.toml (CPU-only wheel, ~180 MB)
+transformers>=4.40.0
+librosa>=0.10.0
+soundfile>=0.12.0

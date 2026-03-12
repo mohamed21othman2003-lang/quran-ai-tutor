@@ -10,6 +10,7 @@ POST /api/v1/auth/login        — Authenticate, returns JWT
 POST /api/v1/progress          — Save a learning event (auth required)
 GET  /api/v1/progress/{uid}    — Get user history + weak rules (auth required)
 POST /api/v1/admin/ingest      — Re-ingest knowledge base into ChromaDB (admin key required)
+POST /api/v1/voice/check       — Transcribe recitation + compare with expected ayah
 """
 
 import asyncio
@@ -30,6 +31,7 @@ from src.auth.router import router as auth_router
 from src.config import settings
 from src.progress.router import router as progress_router
 from src.rag.pipeline import RAGPipeline
+from src.voice.router import router as voice_router
 
 # ------------------------------------------------------------------
 # Logging
@@ -109,6 +111,7 @@ async def serve_frontend():
 
 app.include_router(auth_router)
 app.include_router(progress_router)
+app.include_router(voice_router)
 
 # ------------------------------------------------------------------
 # Pydantic models
