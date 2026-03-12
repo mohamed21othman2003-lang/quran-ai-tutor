@@ -1,0 +1,1321 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quran AI Tutor — Tajweed Assistant</title>
+  <style>
+    /* ── Reset & Tokens ─────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green-900: #064e3b;
+      --green-800: #065f46;
+      --green-700: #047857;
+      --green-600: #059669;
+      --green-500: #10b981;
+      --green-400: #34d399;
+      --green-100: #d1fae5;
+      --green-50:  #ecfdf5;
+      --gold:      #d4a017;
+      --gold-light:#f5e6a3;
+      --red:       #ef4444;
+      --red-light: #fff5f5;
+      --bg:        #f8faf9;
+      --surface:   #ffffff;
+      --border:    #d1fae5;
+      --text:      #1a2e22;
+      --text-muted:#52786a;
+      --shadow:    0 2px 16px rgba(6,78,59,.10);
+      --radius:    14px;
+      --font-en:   'Segoe UI', system-ui, sans-serif;
+      --font-ar:   'Amiri', 'Traditional Arabic', serif;
+    }
+
+    body {
+      font-family: var(--font-en);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ══════════════════════════════════════════════════════════
+       AUTH SCREEN
+    ══════════════════════════════════════════════════════════ */
+    #auth-screen {
+      position: fixed; inset: 0;
+      background: linear-gradient(160deg, var(--green-900) 0%, var(--green-700) 60%, var(--green-500) 100%);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 1000;
+      padding: 20px;
+    }
+    #auth-screen.hidden { display: none; }
+
+    .auth-card {
+      background: var(--surface);
+      border-radius: 20px;
+      padding: 40px 36px;
+      width: 100%; max-width: 400px;
+      box-shadow: 0 24px 60px rgba(0,0,0,.35);
+      display: flex; flex-direction: column; gap: 24px;
+    }
+
+    .auth-logo {
+      display: flex; flex-direction: column; align-items: center; gap: 10px;
+    }
+    .auth-logo .emblem {
+      width: 60px; height: 60px;
+      background: linear-gradient(135deg, var(--green-700), var(--green-500));
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px;
+      box-shadow: 0 4px 16px rgba(5,150,105,.4);
+    }
+    .auth-logo h1 { font-size: 1.25rem; color: var(--green-900); font-weight: 700; }
+    .auth-logo p  { font-size: .8rem; color: var(--text-muted); }
+
+    .auth-tabs {
+      display: flex; background: var(--green-50);
+      border-radius: 10px; padding: 3px; gap: 3px;
+    }
+    .auth-tab {
+      flex: 1; border: none; background: transparent;
+      padding: 9px; border-radius: 8px;
+      font-size: .88rem; font-weight: 600;
+      color: var(--text-muted); cursor: pointer; transition: all .2s;
+      font-family: inherit;
+    }
+    .auth-tab.active {
+      background: var(--surface);
+      color: var(--green-700);
+      box-shadow: 0 1px 6px rgba(6,78,59,.15);
+    }
+
+    .auth-form { display: flex; flex-direction: column; gap: 14px; }
+    .auth-form.hidden { display: none; }
+
+    .field-group { display: flex; flex-direction: column; gap: 5px; }
+    .field-group label {
+      font-size: .78rem; font-weight: 600; color: var(--text-muted);
+    }
+    .auth-input {
+      width: 100%;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 11px 14px;
+      font-size: .93rem;
+      font-family: inherit;
+      color: var(--text);
+      background: var(--bg);
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .auth-input:focus {
+      border-color: var(--green-500);
+      box-shadow: 0 0 0 3px rgba(16,185,129,.15);
+    }
+    .auth-input.ar { direction: rtl; font-family: var(--font-ar); }
+
+    .auth-error {
+      font-size: .8rem; color: var(--red);
+      background: var(--red-light);
+      border-radius: 8px; padding: 8px 12px;
+      display: none;
+    }
+    .auth-error.visible { display: block; }
+
+    .auth-submit {
+      border: none;
+      background: linear-gradient(135deg, var(--green-700), var(--green-500));
+      color: #fff;
+      padding: 13px;
+      border-radius: 10px;
+      font-size: .95rem;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      transition: transform .15s, box-shadow .15s;
+      box-shadow: 0 3px 12px rgba(5,150,105,.4);
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .auth-submit:hover  { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(5,150,105,.45); }
+    .auth-submit:active { transform: translateY(0); }
+    .auth-submit:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+
+    /* ══════════════════════════════════════════════════════════
+       HEADER
+    ══════════════════════════════════════════════════════════ */
+    header {
+      background: linear-gradient(135deg, var(--green-900) 0%, var(--green-700) 100%);
+      padding: 14px 20px;
+      display: flex; align-items: center; justify-content: space-between;
+      box-shadow: 0 4px 20px rgba(0,0,0,.25);
+      position: sticky; top: 0; z-index: 100; gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .logo {
+      width: 40px; height: 40px;
+      background: var(--gold); border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; flex-shrink: 0;
+      box-shadow: 0 0 0 3px rgba(212,160,23,.3);
+    }
+    .header-title h1 { color: #fff; font-size: 1.1rem; font-weight: 700; }
+    .header-title p  { color: var(--green-400); font-size: .73rem; margin-top: 1px; }
+
+    .header-right { display: flex; align-items: center; gap: 10px; }
+
+    /* User chip */
+    #user-chip {
+      display: none; align-items: center; gap: 8px;
+      background: rgba(255,255,255,.12);
+      border-radius: 30px; padding: 5px 14px 5px 6px;
+    }
+    #user-chip.visible { display: flex; }
+    .user-avatar {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: var(--gold);
+      display: flex; align-items: center; justify-content: center;
+      font-size: .75rem; font-weight: 700; color: var(--green-900);
+    }
+    #user-chip span { color: #fff; font-size: .82rem; font-weight: 600; }
+
+    .logout-btn {
+      border: none; background: rgba(255,255,255,.15);
+      color: rgba(255,255,255,.8);
+      padding: 5px 12px; border-radius: 20px;
+      font-size: .75rem; cursor: pointer; font-family: inherit;
+      transition: background .2s;
+    }
+    .logout-btn:hover { background: rgba(255,255,255,.25); color: #fff; }
+
+    /* Language toggle */
+    #lang-toggle {
+      display: flex; background: rgba(255,255,255,.12);
+      border-radius: 30px; padding: 3px; gap: 2px;
+    }
+    .lang-btn {
+      border: none; background: transparent;
+      color: rgba(255,255,255,.7);
+      padding: 5px 13px; border-radius: 24px;
+      font-size: .8rem; cursor: pointer; transition: all .2s; font-weight: 500;
+    }
+    .lang-btn.active { background: var(--gold); color: var(--green-900); font-weight: 700; }
+
+    /* ══════════════════════════════════════════════════════════
+       MAIN / TABS / PANELS
+    ══════════════════════════════════════════════════════════ */
+    main {
+      flex: 1; max-width: 860px; width: 100%;
+      margin: 0 auto; padding: 20px 16px 40px;
+      display: flex; flex-direction: column; gap: 18px;
+    }
+
+    .tabs {
+      display: flex; background: var(--surface);
+      border-radius: var(--radius); padding: 5px; gap: 4px;
+      box-shadow: var(--shadow); border: 1px solid var(--border);
+    }
+    .tab-btn {
+      flex: 1; border: none; background: transparent;
+      padding: 10px 6px; border-radius: 10px;
+      font-size: .83rem; font-weight: 600; cursor: pointer;
+      color: var(--text-muted); transition: all .2s;
+      display: flex; align-items: center; justify-content: center; gap: 5px;
+    }
+    .tab-btn .icon { font-size: 1rem; }
+    .tab-btn:hover { background: var(--green-50); color: var(--green-700); }
+    .tab-btn.active {
+      background: linear-gradient(135deg, var(--green-700), var(--green-600));
+      color: #fff; box-shadow: 0 2px 8px rgba(5,150,105,.35);
+    }
+
+    .panel { display: none; flex-direction: column; gap: 16px; }
+    .panel.active { display: flex; }
+
+    /* ── Chat ── */
+    #chat-window {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); min-height: 380px; max-height: 54vh;
+      overflow-y: auto; padding: 20px;
+      display: flex; flex-direction: column; gap: 16px;
+      scroll-behavior: smooth; box-shadow: var(--shadow);
+    }
+    .welcome {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 10px; color: var(--text-muted); text-align: center; padding: 32px 20px;
+    }
+    .welcome .welcome-icon { font-size: 3rem; }
+    .welcome h2 { font-size: 1.05rem; color: var(--green-700); }
+    .welcome p  { font-size: .83rem; max-width: 300px; line-height: 1.6; }
+
+    .bubble-row { display: flex; gap: 10px; align-items: flex-end; }
+    .bubble-row.user { flex-direction: row-reverse; }
+    .avatar {
+      width: 30px; height: 30px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .9rem; flex-shrink: 0;
+    }
+    .avatar.ai  { background: var(--green-100); }
+    .avatar.usr { background: var(--gold-light); }
+
+    .bubble {
+      max-width: 72%; padding: 11px 15px; border-radius: 18px;
+      font-size: .91rem; line-height: 1.65; white-space: pre-wrap;
+    }
+    .bubble.ai {
+      background: var(--green-50); border: 1px solid var(--green-100);
+      border-bottom-left-radius: 4px; color: var(--text);
+    }
+    .bubble.user {
+      background: linear-gradient(135deg, var(--green-700), var(--green-600));
+      color: #fff; border-bottom-right-radius: 4px;
+    }
+    .bubble.ar { font-family: var(--font-ar); font-size: 1.05rem; direction: rtl; text-align: right; }
+
+    .sources-toggle {
+      font-size: .72rem; color: var(--green-600); cursor: pointer;
+      margin-top: 5px; display: inline-flex; align-items: center; gap: 4px;
+      border: none; background: none; padding: 0; font-family: inherit;
+    }
+    .sources-toggle:hover { text-decoration: underline; }
+    .sources-box {
+      display: none; margin-top: 7px; padding: 9px 12px;
+      background: #f0fdf8; border-left: 3px solid var(--green-400);
+      border-radius: 6px; font-size: .74rem; color: var(--text-muted); line-height: 1.5;
+    }
+    .sources-box.open { display: block; }
+
+    .chat-input-row {
+      display: flex; gap: 10px; background: var(--surface);
+      border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 10px 12px; box-shadow: var(--shadow); align-items: flex-end;
+    }
+    #chat-input {
+      flex: 1; border: none; outline: none; font-size: .92rem;
+      font-family: inherit; resize: none; min-height: 24px; max-height: 120px;
+      line-height: 1.5; color: var(--text); background: transparent;
+    }
+    #chat-input::placeholder { color: #a0b8ae; }
+    #chat-input.ar { font-family: var(--font-ar); font-size: 1.05rem; direction: rtl; text-align: right; }
+    .send-btn {
+      width: 40px; height: 40px; border-radius: 50%; border: none;
+      background: linear-gradient(135deg, var(--green-700), var(--green-500));
+      color: #fff; font-size: 1rem; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      transition: transform .15s, box-shadow .15s;
+      box-shadow: 0 2px 8px rgba(5,150,105,.4);
+    }
+    .send-btn:hover  { transform: scale(1.08); box-shadow: 0 4px 14px rgba(5,150,105,.5); }
+    .send-btn:active { transform: scale(.96); }
+    .send-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+    /* ── Rules ── */
+    .panel-header {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 18px 20px;
+      display: flex; align-items: center; justify-content: space-between;
+      box-shadow: var(--shadow); flex-wrap: wrap; gap: 12px;
+    }
+    .panel-header h2 { font-size: .98rem; color: var(--green-800); }
+    .panel-header p  { font-size: .8rem; color: var(--text-muted); margin-top: 2px; }
+
+    .fetch-btn {
+      border: none;
+      background: linear-gradient(135deg, var(--green-700), var(--green-500));
+      color: #fff; padding: 9px 20px; border-radius: 30px;
+      font-size: .84rem; font-weight: 600; cursor: pointer;
+      display: flex; align-items: center; gap: 7px; transition: all .2s;
+      box-shadow: 0 2px 8px rgba(5,150,105,.35); white-space: nowrap;
+      font-family: inherit;
+    }
+    .fetch-btn:hover  { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(5,150,105,.45); }
+    .fetch-btn:active { transform: translateY(0); }
+    .fetch-btn:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+
+    #rules-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px;
+    }
+    .rule-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 16px 14px;
+      display: flex; flex-direction: column; gap: 7px;
+      box-shadow: 0 1px 8px rgba(6,78,59,.07);
+      transition: transform .2s, box-shadow .2s; cursor: pointer;
+    }
+    .rule-card:hover {
+      transform: translateY(-3px); box-shadow: 0 6px 20px rgba(6,78,59,.13);
+      border-color: var(--green-400);
+    }
+    .rule-card .rule-icon  { font-size: 1.5rem; }
+    .rule-card .rule-name  { font-size: .88rem; font-weight: 700; color: var(--green-800); }
+    .rule-card .rule-badge {
+      display: inline-block; background: var(--green-100); color: var(--green-700);
+      font-size: .68rem; font-weight: 600; padding: 2px 8px;
+      border-radius: 10px; width: fit-content;
+    }
+    .rule-card .learn-btn {
+      margin-top: auto; border: 1.5px solid var(--green-500);
+      background: transparent; color: var(--green-700);
+      font-size: .76rem; font-weight: 600; font-family: inherit;
+      padding: 5px 10px; border-radius: 8px; cursor: pointer;
+      transition: all .18s; text-align: center;
+    }
+    .rule-card .learn-btn:hover { background: var(--green-600); border-color: var(--green-600); color: #fff; }
+
+    /* ── Quiz ── */
+    .quiz-input-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 18px;
+      box-shadow: var(--shadow); display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;
+    }
+    .quiz-input-card label {
+      display: block; font-size: .78rem; font-weight: 600; color: var(--text-muted); margin-bottom: 5px;
+    }
+    .quiz-input-card .field { flex: 1; min-width: 150px; }
+    .quiz-input-card input, .quiz-input-card select {
+      width: 100%; border: 1.5px solid var(--border); border-radius: 8px;
+      padding: 10px 12px; font-size: .88rem; font-family: inherit;
+      color: var(--text); outline: none; transition: border-color .2s; background: var(--bg);
+    }
+    .quiz-input-card input:focus, .quiz-input-card select:focus { border-color: var(--green-500); }
+
+    #quiz-result {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 22px;
+      box-shadow: var(--shadow); display: none; flex-direction: column; gap: 16px;
+    }
+    #quiz-result.visible { display: flex; }
+    #quiz-question {
+      font-size: 1.03rem; font-weight: 600; color: var(--green-900); line-height: 1.6;
+    }
+    #quiz-question.ar { font-family: var(--font-ar); font-size: 1.15rem; direction: rtl; text-align: right; }
+
+    .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .option-btn {
+      border: 2px solid var(--border); background: var(--bg);
+      border-radius: 10px; padding: 13px 14px; font-size: .88rem;
+      font-family: inherit; cursor: pointer; text-align: left;
+      transition: all .2s; color: var(--text); line-height: 1.4;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .option-btn .opt-letter {
+      width: 24px; height: 24px; border-radius: 50%;
+      background: var(--green-100); color: var(--green-700);
+      font-size: .74rem; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .option-btn:hover:not(:disabled) { border-color: var(--green-500); background: var(--green-50); }
+    .option-btn.correct { border-color: var(--green-500); background: var(--green-50); color: var(--green-800); }
+    .option-btn.correct .opt-letter { background: var(--green-500); color: #fff; }
+    .option-btn.wrong   { border-color: #f87171; background: #fff5f5; color: #b91c1c; }
+    .option-btn.wrong .opt-letter { background: #f87171; color: #fff; }
+    .option-btn.ar { direction: rtl; text-align: right; font-family: var(--font-ar); font-size: 1rem; }
+
+    .explanation-box {
+      background: var(--green-50); border-left: 4px solid var(--green-500);
+      border-radius: 8px; padding: 13px 15px; font-size: .87rem;
+      color: var(--green-800); line-height: 1.65; display: none;
+    }
+    .explanation-box.visible { display: block; }
+    .explanation-box.ar { border-left: none; border-right: 4px solid var(--green-500); direction: rtl; text-align: right; font-family: var(--font-ar); }
+
+    /* ── Progress Panel ── */
+    .progress-header {
+      background: linear-gradient(135deg, var(--green-900), var(--green-700));
+      border-radius: var(--radius); padding: 22px 24px;
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+    }
+    .progress-header h2 { color: #fff; font-size: 1rem; }
+    .progress-header p  { color: var(--green-400); font-size: .8rem; margin-top: 3px; }
+    .progress-stat {
+      background: rgba(255,255,255,.12); border-radius: 12px;
+      padding: 12px 18px; text-align: center;
+    }
+    .progress-stat .stat-num { color: var(--gold); font-size: 1.6rem; font-weight: 700; }
+    .progress-stat .stat-lbl { color: rgba(255,255,255,.7); font-size: .72rem; margin-top: 2px; }
+
+    .section-title {
+      font-size: .82rem; font-weight: 700; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: .5px; margin-bottom: 2px;
+    }
+
+    .weak-rules-list { display: flex; flex-direction: column; gap: 10px; }
+    .weak-rule-row {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 14px 16px;
+      display: flex; align-items: center; gap: 14px;
+      box-shadow: 0 1px 6px rgba(6,78,59,.06);
+    }
+    .weak-rule-row .wr-icon { font-size: 1.4rem; flex-shrink: 0; }
+    .weak-rule-row .wr-info { flex: 1; }
+    .weak-rule-row .wr-name { font-size: .9rem; font-weight: 700; color: var(--green-800); }
+    .weak-rule-row .wr-meta { font-size: .75rem; color: var(--text-muted); margin-top: 2px; }
+    .score-bar-wrap { width: 80px; }
+    .score-bar-bg {
+      height: 6px; background: var(--green-100); border-radius: 3px; overflow: hidden;
+    }
+    .score-bar-fill {
+      height: 100%; border-radius: 3px;
+      transition: width .6s ease;
+    }
+    .score-label { font-size: .7rem; font-weight: 700; margin-top: 3px; text-align: right; }
+
+    .history-list { display: flex; flex-direction: column; gap: 8px; max-height: 300px; overflow-y: auto; }
+    .history-row {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 10px 14px;
+      display: flex; align-items: center; gap: 10px; font-size: .83rem;
+    }
+    .history-row .h-type {
+      background: var(--green-100); color: var(--green-700);
+      padding: 2px 8px; border-radius: 8px; font-size: .7rem; font-weight: 700;
+      flex-shrink: 0;
+    }
+    .history-row .h-rule { flex: 1; font-weight: 600; color: var(--text); }
+    .history-row .h-score { font-weight: 700; }
+    .history-row .h-date { font-size: .7rem; color: var(--text-muted); flex-shrink: 0; }
+
+    /* ── Spinner ── */
+    .spinner-row { display: flex; align-items: center; gap: 10px; color: var(--text-muted); font-size: .84rem; }
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid var(--green-100); border-top-color: var(--green-500);
+      border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed; bottom: 24px; left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--green-900); color: #fff;
+      padding: 10px 22px; border-radius: 30px; font-size: .84rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,.25); transition: transform .35s ease;
+      z-index: 9999; white-space: nowrap;
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* ── Utility ── */
+    .empty-state { text-align: center; color: var(--text-muted); font-size: .87rem; padding: 30px; }
+
+    /* ── Responsive ── */
+    @media (max-width: 560px) {
+      header { padding: 10px 12px; }
+      .header-title p { display: none; }
+      .lang-btn { padding: 4px 9px; font-size: .73rem; }
+      main { padding: 12px 10px 28px; gap: 12px; }
+      .tab-btn .tab-label { display: none; }
+      .bubble { max-width: 88%; }
+      .options-grid { grid-template-columns: 1fr; }
+      .auth-card { padding: 28px 20px; }
+      .score-bar-wrap { display: none; }
+    }
+
+    /* RTL overrides */
+    html[dir="rtl"] .bubble.user { border-bottom-right-radius: 18px; border-bottom-left-radius: 4px; }
+    html[dir="rtl"] .bubble.ai  { border-bottom-left-radius: 18px; border-bottom-right-radius: 4px; }
+    html[dir="rtl"] .sources-box     { border-left: none; border-right: 3px solid var(--green-400); }
+    html[dir="rtl"] .explanation-box { border-left: none; border-right: 4px solid var(--green-500); }
+    html[dir="rtl"] body { font-family: var(--font-ar); }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════════
+     AUTH SCREEN
+══════════════════════════════════════════════════════════════ -->
+<div id="auth-screen">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <div class="emblem">☪</div>
+      <h1 id="auth-title">Quran AI Tutor</h1>
+      <p id="auth-sub">Sign in to track your Tajweed progress</p>
+    </div>
+
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tab-login-btn" onclick="showAuthForm('login')" id="atab-login">
+        <span id="lbl-login-tab">Login</span>
+      </button>
+      <button class="auth-tab" id="tab-register-btn" onclick="showAuthForm('register')">
+        <span id="lbl-register-tab">Register</span>
+      </button>
+    </div>
+
+    <!-- Login form -->
+    <form class="auth-form" id="form-login" onsubmit="submitLogin(event)">
+      <div class="field-group">
+        <label id="lbl-username-l">Username</label>
+        <input class="auth-input" id="login-username" type="text" autocomplete="username" required />
+      </div>
+      <div class="field-group">
+        <label id="lbl-password-l">Password</label>
+        <input class="auth-input" id="login-password" type="password" autocomplete="current-password" required />
+      </div>
+      <div class="auth-error" id="login-error"></div>
+      <button class="auth-submit" type="submit" id="login-btn">
+        <span id="lbl-login-btn">Login</span>
+      </button>
+    </form>
+
+    <!-- Register form -->
+    <form class="auth-form hidden" id="form-register" onsubmit="submitRegister(event)">
+      <div class="field-group">
+        <label id="lbl-username-r">Username</label>
+        <input class="auth-input" id="reg-username" type="text" autocomplete="username" required minlength="3" />
+      </div>
+      <div class="field-group">
+        <label id="lbl-password-r">Password</label>
+        <input class="auth-input" id="reg-password" type="password" autocomplete="new-password" required minlength="6" />
+      </div>
+      <div class="field-group">
+        <label id="lbl-confirm-r">Confirm Password</label>
+        <input class="auth-input" id="reg-confirm" type="password" autocomplete="new-password" required minlength="6" />
+      </div>
+      <div class="auth-error" id="reg-error"></div>
+      <button class="auth-submit" type="submit" id="reg-btn">
+        <span id="lbl-reg-btn">Create Account</span>
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     HEADER
+══════════════════════════════════════════════════════════════ -->
+<header>
+  <div class="header-left">
+    <div class="logo">☪</div>
+    <div class="header-title">
+      <h1 id="app-title">Quran AI Tutor</h1>
+      <p id="app-sub">Tajweed Assistant • مساعد التجويد</p>
+    </div>
+  </div>
+  <div class="header-right">
+    <div id="user-chip">
+      <div class="user-avatar" id="user-avatar-initials">?</div>
+      <span id="header-username"></span>
+      <button class="logout-btn" id="logout-btn" onclick="logout()">
+        <span id="lbl-logout">Logout</span>
+      </button>
+    </div>
+    <div id="lang-toggle">
+      <button class="lang-btn active" onclick="setLang('en')">English</button>
+      <button class="lang-btn" onclick="setLang('ar')">عربي</button>
+    </div>
+  </div>
+</header>
+
+<!-- ══════════════════════════════════════════════════════════════
+     MAIN APP
+══════════════════════════════════════════════════════════════ -->
+<main>
+  <!-- Tabs -->
+  <div class="tabs" role="tablist">
+    <button class="tab-btn active" onclick="switchTab('chat')" id="tab-chat">
+      <span class="icon">💬</span><span class="tab-label" id="lbl-chat">Chat</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('rules')" id="tab-rules">
+      <span class="icon">📖</span><span class="tab-label" id="lbl-rules">Rules</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('quiz')" id="tab-quiz">
+      <span class="icon">🎯</span><span class="tab-label" id="lbl-quiz">Quiz</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('progress')" id="tab-progress">
+      <span class="icon">📊</span><span class="tab-label" id="lbl-progress">Progress</span>
+    </button>
+  </div>
+
+  <!-- ── Chat Panel ── -->
+  <div class="panel active" id="panel-chat">
+    <div id="chat-window">
+      <div class="welcome" id="chat-welcome">
+        <div class="welcome-icon">🕌</div>
+        <h2 id="welcome-title">Ask about Tajweed</h2>
+        <p id="welcome-sub">Type your question in English or Arabic. The AI answers from authentic Tajweed knowledge.</p>
+      </div>
+    </div>
+    <div class="chat-input-row">
+      <textarea id="chat-input" rows="1" placeholder="Ask a Tajweed question…"
+        onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+      <button class="send-btn" id="send-btn" onclick="sendChat()" title="Send">➤</button>
+    </div>
+  </div>
+
+  <!-- ── Rules Panel ── -->
+  <div class="panel" id="panel-rules">
+    <div class="panel-header">
+      <div>
+        <h2 id="rules-heading">Tajweed Rules</h2>
+        <p id="rules-sub">Browse all rules in the knowledge base</p>
+      </div>
+      <button class="fetch-btn" id="rules-btn" onclick="fetchRules()">
+        <span>📚</span><span id="rules-btn-lbl">Load Rules</span>
+      </button>
+    </div>
+    <div id="rules-grid">
+      <div class="empty-state" id="rules-empty">Click "Load Rules" to fetch the knowledge base.</div>
+    </div>
+  </div>
+
+  <!-- ── Quiz Panel ── -->
+  <div class="panel" id="panel-quiz">
+    <div class="quiz-input-card">
+      <div class="field">
+        <label id="quiz-rule-lbl">Tajweed Rule</label>
+        <input type="text" id="quiz-rule-input" placeholder="e.g. Ikhfa" />
+      </div>
+      <div class="field" style="max-width:120px">
+        <label id="quiz-lang-lbl">Language</label>
+        <select id="quiz-lang-select">
+          <option value="en">English</option>
+          <option value="ar">العربية</option>
+        </select>
+      </div>
+      <button class="fetch-btn" id="quiz-btn" onclick="generateQuiz()" style="margin-top:22px">
+        <span>🎯</span><span id="quiz-btn-lbl">Generate</span>
+      </button>
+    </div>
+    <div id="quiz-result">
+      <p id="quiz-question"></p>
+      <div class="options-grid" id="options-grid"></div>
+      <div class="explanation-box" id="explanation-box"></div>
+    </div>
+  </div>
+
+  <!-- ── Progress Panel ── -->
+  <div class="panel" id="panel-progress">
+    <div class="progress-header">
+      <div>
+        <h2 id="prog-title">My Progress</h2>
+        <p id="prog-sub">Your learning history and weak areas</p>
+      </div>
+      <div class="progress-stat">
+        <div class="stat-num" id="stat-sessions">—</div>
+        <div class="stat-lbl" id="stat-lbl">Sessions</div>
+      </div>
+    </div>
+    <div>
+      <div class="section-title" id="prog-weak-title">RULES TO REVIEW</div>
+      <div class="weak-rules-list" id="weak-rules-list">
+        <div class="empty-state" id="prog-empty">Switch to the Progress tab after some activity.</div>
+      </div>
+    </div>
+    <div>
+      <div class="section-title" id="prog-hist-title">RECENT ACTIVITY</div>
+      <div class="history-list" id="history-list"></div>
+    </div>
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════
+   Constants & State
+═══════════════════════════════════════════════════════════ */
+const API = window.location.origin;
+
+// Auth state (in-memory only — never persisted)
+let authToken   = null;
+let currentUser = null; // { user_id, username }
+
+// UI state
+let lang         = 'en';
+let quizAnswered = false;
+let currentQuizRule = '';
+
+/* ═══════════════════════════════════════════════════════════
+   i18n
+═══════════════════════════════════════════════════════════ */
+const i18n = {
+  en: {
+    appTitle: 'Quran AI Tutor',
+    authSub: 'Sign in to track your Tajweed progress',
+    loginTab: 'Login', registerTab: 'Register',
+    usernameL: 'Username', passwordL: 'Password',
+    usernameR: 'Username', passwordR: 'Password', confirmR: 'Confirm Password',
+    loginBtn: 'Login', regBtn: 'Create Account',
+    logout: 'Logout',
+    chat: 'Chat', rules: 'Rules', quiz: 'Quiz', progress: 'Progress',
+    welcomeTitle: 'Ask about Tajweed',
+    welcomeSub: 'Type your question in English or Arabic. The AI answers from authentic Tajweed knowledge.',
+    placeholder: 'Ask a Tajweed question…',
+    rulesHeading: 'Tajweed Rules', rulesSub: 'Browse all rules in the knowledge base',
+    loadRules: 'Load Rules', rulesEmpty: 'Click "Load Rules" to fetch the knowledge base.',
+    quizRuleLbl: 'Tajweed Rule', quizLangLbl: 'Language', generate: 'Generate',
+    quizPlaceholder: 'e.g. Ikhfa',
+    loading: 'Thinking…', loadingRules: 'Loading…', loadingQuiz: 'Generating quiz…',
+    sources: '📄 View sources', hideSource: '📄 Hide sources',
+    errorApi: 'Could not reach the API. Is the server running?',
+    errorLogin: 'Invalid username or password.',
+    errorPassMatch: 'Passwords do not match.',
+    ruleLabel: 'Rule', learnMore: 'Learn more →', explainPrefix: 'Explain the rule: ',
+    progTitle: 'My Progress', progSub: 'Your learning history and weak areas',
+    sessions: 'Sessions', weakTitle: 'RULES TO REVIEW', histTitle: 'RECENT ACTIVITY',
+    progEmpty: 'Start chatting or take a quiz to see your progress here.',
+    attempts: 'attempt', attemptsP: 'attempts',
+    scoreGood: 'Good', scoreFair: 'Fair', scoreWeak: 'Needs work',
+  },
+  ar: {
+    appTitle: 'مساعد تعلّم التجويد',
+    authSub: 'سجّل دخولك لتتبع تقدّمك في التجويد',
+    loginTab: 'تسجيل الدخول', registerTab: 'حساب جديد',
+    usernameL: 'اسم المستخدم', passwordL: 'كلمة المرور',
+    usernameR: 'اسم المستخدم', passwordR: 'كلمة المرور', confirmR: 'تأكيد كلمة المرور',
+    loginBtn: 'دخول', regBtn: 'إنشاء حساب',
+    logout: 'خروج',
+    chat: 'محادثة', rules: 'القواعد', quiz: 'اختبار', progress: 'تقدّمي',
+    welcomeTitle: 'اسأل عن التجويد',
+    welcomeSub: 'اكتب سؤالك بالعربية أو الإنجليزية. سيجيب الذكاء الاصطناعي من المعرفة الأصيلة.',
+    placeholder: 'اكتب سؤالك هنا…',
+    rulesHeading: 'قواعد التجويد', rulesSub: 'تصفح جميع القواعد في قاعدة المعرفة',
+    loadRules: 'تحميل القواعد', rulesEmpty: 'انقر على "تحميل القواعد" لاسترجاع قاعدة المعرفة.',
+    quizRuleLbl: 'قاعدة التجويد', quizLangLbl: 'اللغة', generate: 'توليد',
+    quizPlaceholder: 'مثال: الإخفاء',
+    loading: 'جارٍ التفكير…', loadingRules: 'جارٍ التحميل…', loadingQuiz: 'جارٍ توليد الاختبار…',
+    sources: '📄 عرض المصادر', hideSource: '📄 إخفاء المصادر',
+    errorApi: 'تعذّر الوصول إلى الخادم. هل هو يعمل؟',
+    errorLogin: 'اسم المستخدم أو كلمة المرور غير صحيحة.',
+    errorPassMatch: 'كلمتا المرور غير متطابقتين.',
+    ruleLabel: 'قاعدة', learnMore: 'اعرف المزيد ←', explainPrefix: 'اشرح القاعدة: ',
+    progTitle: 'تقدّمي', progSub: 'سجل التعلّم والمناطق الضعيفة',
+    sessions: 'جلسة', weakTitle: 'قواعد تحتاج مراجعة', histTitle: 'النشاط الأخير',
+    progEmpty: 'ابدأ المحادثة أو أجرِ اختباراً لرؤية تقدّمك هنا.',
+    attempts: 'محاولة', attemptsP: 'محاولات',
+    scoreGood: 'جيد', scoreFair: 'مقبول', scoreWeak: 'يحتاج تحسين',
+  }
+};
+
+const t = k => i18n[lang][k] || k;
+
+function applyI18n() {
+  const $ = id => document.getElementById(id);
+  $('app-title').textContent    = t('appTitle');
+  $('auth-title').textContent   = t('appTitle');
+  $('auth-sub').textContent     = t('authSub');
+  $('lbl-login-tab').textContent   = t('loginTab');
+  $('lbl-register-tab').textContent = t('registerTab');
+  $('lbl-username-l').textContent  = t('usernameL');
+  $('lbl-password-l').textContent  = t('passwordL');
+  $('lbl-username-r').textContent  = t('usernameR');
+  $('lbl-password-r').textContent  = t('passwordR');
+  $('lbl-confirm-r').textContent   = t('confirmR');
+  $('lbl-login-btn').textContent   = t('loginBtn');
+  $('lbl-reg-btn').textContent     = t('regBtn');
+  $('lbl-logout').textContent      = t('logout');
+  $('lbl-chat').textContent     = t('chat');
+  $('lbl-rules').textContent    = t('rules');
+  $('lbl-quiz').textContent     = t('quiz');
+  $('lbl-progress').textContent = t('progress');
+  $('welcome-title').textContent = t('welcomeTitle');
+  $('welcome-sub').textContent   = t('welcomeSub');
+  $('chat-input').placeholder    = t('placeholder');
+  $('chat-input').classList.toggle('ar', lang === 'ar');
+  $('rules-heading').textContent = t('rulesHeading');
+  $('rules-sub').textContent     = t('rulesSub');
+  $('rules-btn-lbl').textContent = t('loadRules');
+  $('rules-empty').textContent   = t('rulesEmpty');
+  $('quiz-rule-lbl').textContent = t('quizRuleLbl');
+  $('quiz-lang-lbl').textContent = t('quizLangLbl');
+  $('quiz-btn-lbl').textContent  = t('generate');
+  $('quiz-rule-input').placeholder = t('quizPlaceholder');
+  $('prog-title').textContent    = t('progTitle');
+  $('prog-sub').textContent      = t('progSub');
+  $('stat-lbl').textContent      = t('sessions');
+  $('prog-weak-title').textContent = t('weakTitle');
+  $('prog-hist-title').textContent = t('histTitle');
+  $('prog-empty').textContent    = t('progEmpty');
+
+  // Auth inputs direction
+  ['login-username','login-password','reg-username','reg-password','reg-confirm'].forEach(id => {
+    $( id).classList.toggle('ar', lang === 'ar');
+  });
+}
+
+function setLang(l) {
+  lang = l;
+  document.documentElement.lang = l;
+  document.documentElement.dir  = l === 'ar' ? 'rtl' : 'ltr';
+  document.querySelectorAll('.lang-btn').forEach(b => {
+    b.classList.toggle('active', (b.textContent.trim() === 'عربي') === (l === 'ar'));
+  });
+  applyI18n();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Auth Screen
+═══════════════════════════════════════════════════════════ */
+function showAuthForm(which) {
+  document.getElementById('form-login').classList.toggle('hidden', which !== 'login');
+  document.getElementById('form-register').classList.toggle('hidden', which !== 'register');
+  document.getElementById('tab-login-btn').classList.toggle('active', which === 'login');
+  document.getElementById('tab-register-btn').classList.toggle('active', which === 'register');
+  document.getElementById('login-error').classList.remove('visible');
+  document.getElementById('reg-error').classList.remove('visible');
+}
+
+async function submitLogin(e) {
+  e.preventDefault();
+  const btn = document.getElementById('login-btn');
+  const errEl = document.getElementById('login-error');
+  btn.disabled = true;
+  errEl.classList.remove('visible');
+
+  const username = document.getElementById('login-username').value.trim();
+  const password = document.getElementById('login-password').value;
+
+  try {
+    const data = await apiPost('/api/v1/auth/login', { username, password });
+    onAuthSuccess(data);
+  } catch (err) {
+    errEl.textContent = err.status === 401 ? t('errorLogin') : err.message;
+    errEl.classList.add('visible');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function submitRegister(e) {
+  e.preventDefault();
+  const btn = document.getElementById('reg-btn');
+  const errEl = document.getElementById('reg-error');
+  btn.disabled = true;
+  errEl.classList.remove('visible');
+
+  const username = document.getElementById('reg-username').value.trim();
+  const password = document.getElementById('reg-password').value;
+  const confirm  = document.getElementById('reg-confirm').value;
+
+  if (password !== confirm) {
+    errEl.textContent = t('errorPassMatch');
+    errEl.classList.add('visible');
+    btn.disabled = false;
+    return;
+  }
+
+  try {
+    const data = await apiPost('/api/v1/auth/register', { username, password });
+    onAuthSuccess(data);
+  } catch (err) {
+    errEl.textContent = err.message || t('errorApi');
+    errEl.classList.add('visible');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function onAuthSuccess(data) {
+  authToken   = data.token;
+  currentUser = { user_id: data.user_id, username: data.username };
+
+  // Show user chip in header
+  const initials = data.username.slice(0, 2).toUpperCase();
+  document.getElementById('user-avatar-initials').textContent = initials;
+  document.getElementById('header-username').textContent = data.username;
+  document.getElementById('user-chip').classList.add('visible');
+
+  // Hide auth screen
+  document.getElementById('auth-screen').classList.add('hidden');
+  showToast(`Welcome, ${data.username}!`);
+}
+
+function logout() {
+  authToken   = null;
+  currentUser = null;
+  document.getElementById('user-chip').classList.remove('visible');
+  document.getElementById('auth-screen').classList.remove('hidden');
+  // Reset forms
+  document.getElementById('login-username').value = '';
+  document.getElementById('login-password').value = '';
+  showAuthForm('login');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Tabs
+═══════════════════════════════════════════════════════════ */
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.getElementById('panel-' + name).classList.add('active');
+  if (name === 'progress') loadProgress();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Chat
+═══════════════════════════════════════════════════════════ */
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+}
+
+async function sendChat() {
+  const input    = document.getElementById('chat-input');
+  const question = input.value.trim();
+  if (!question) return;
+
+  const welcome = document.getElementById('chat-welcome');
+  if (welcome) welcome.remove();
+
+  appendBubble('user', question);
+  input.value = '';
+  input.style.height = 'auto';
+
+  const btn = document.getElementById('send-btn');
+  btn.disabled = true;
+  const spinnerId = appendSpinner();
+
+  try {
+    const data = await apiPost('/api/v1/chat', { question, language: lang });
+    removeSpinner(spinnerId);
+    appendBubble('ai', data.answer, data.sources || []);
+    // Track progress — fire and forget
+    saveProgress('general', 1.0, 'chat');
+  } catch {
+    removeSpinner(spinnerId);
+    appendBubble('ai', '⚠️ ' + t('errorApi'));
+    showToast(t('errorApi'));
+  } finally {
+    btn.disabled = false;
+    input.focus();
+  }
+}
+
+function appendBubble(role, text, sources = []) {
+  const win  = document.getElementById('chat-window');
+  const isAr = /[\u0600-\u06FF]/.test(text) && lang === 'ar';
+
+  const row = document.createElement('div');
+  row.className = `bubble-row ${role}`;
+
+  const av = document.createElement('div');
+  av.className = `avatar ${role === 'ai' ? 'ai' : 'usr'}`;
+  av.textContent = role === 'ai' ? '🤖' : '👤';
+
+  const bubble = document.createElement('div');
+  bubble.className = `bubble ${role}${isAr ? ' ar' : ''}`;
+  bubble.textContent = text;
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = `display:flex;flex-direction:column;align-items:${role === 'user' ? 'flex-end' : 'flex-start'}`;
+  wrap.appendChild(bubble);
+
+  if (role === 'ai' && sources.length) {
+    const toggle = document.createElement('button');
+    toggle.className = 'sources-toggle';
+    toggle.textContent = t('sources');
+    const box = document.createElement('div');
+    box.className = 'sources-box';
+    box.textContent = sources.map((s, i) => `[${i + 1}] ${s.slice(0, 160)}…`).join('\n\n');
+    toggle.onclick = () => {
+      box.classList.toggle('open');
+      toggle.textContent = box.classList.contains('open') ? t('hideSource') : t('sources');
+    };
+    wrap.appendChild(toggle);
+    wrap.appendChild(box);
+  }
+
+  row.appendChild(av);
+  row.appendChild(wrap);
+  win.appendChild(row);
+  win.scrollTop = win.scrollHeight;
+}
+
+function appendSpinner() {
+  const win = document.getElementById('chat-window');
+  const id  = 'spin-' + Date.now();
+  const div = document.createElement('div');
+  div.className = 'spinner-row';
+  div.id = id;
+  div.innerHTML = `<div class="spinner"></div><span>${t('loading')}</span>`;
+  win.appendChild(div);
+  win.scrollTop = win.scrollHeight;
+  return id;
+}
+function removeSpinner(id) { document.getElementById(id)?.remove(); }
+
+/* ═══════════════════════════════════════════════════════════
+   Rules
+═══════════════════════════════════════════════════════════ */
+const ruleIcons = {
+  default:'📜','izhar':'🔊','idgham':'🔗','iqlab':'🔄','ikhfa':'🤫',
+  'madd':'〰️','qalqala':'🫧','waqf':'⏸️','ghunna':'👃',
+  'meem':'👄','noon':'✨','tabee':'🎵','lazim':'🔒',
+  'muttasil':'🔗','munfasil':'↔️','sughra':'🔹','kubra':'🔷',
+};
+function ruleIcon(name) {
+  const lc = name.toLowerCase();
+  for (const [k, v] of Object.entries(ruleIcons)) if (lc.includes(k)) return v;
+  return ruleIcons.default;
+}
+
+async function fetchRules() {
+  const btn  = document.getElementById('rules-btn');
+  const grid = document.getElementById('rules-grid');
+  btn.disabled = true;
+  document.getElementById('rules-btn-lbl').textContent = t('loadingRules');
+  grid.innerHTML = `<div class="spinner-row" style="padding:20px"><div class="spinner"></div><span>${t('loadingRules')}</span></div>`;
+
+  try {
+    const data = await apiFetch('/api/v1/rules');
+    renderRules(data.rules || []);
+  } catch {
+    grid.innerHTML = `<div class="empty-state">⚠️ ${t('errorApi')}</div>`;
+    showToast(t('errorApi'));
+  } finally {
+    btn.disabled = false;
+    document.getElementById('rules-btn-lbl').textContent = t('loadRules');
+  }
+}
+
+function askAboutRule(ruleName) {
+  const question = t('explainPrefix') + ruleName;
+  switchTab('chat');
+  const input = document.getElementById('chat-input');
+  input.value = question;
+  autoResize(input);
+  sendChat();
+}
+
+function renderRules(rules) {
+  const grid = document.getElementById('rules-grid');
+  if (!rules.length) { grid.innerHTML = `<div class="empty-state">${t('rulesEmpty')}</div>`; return; }
+  grid.innerHTML = '';
+  rules.forEach(r => {
+    const card = document.createElement('div');
+    card.className = 'rule-card';
+    card.title = t('explainPrefix') + r;
+    card.innerHTML = `
+      <div class="rule-icon">${ruleIcon(r)}</div>
+      <div class="rule-name">${r}</div>
+      <div class="rule-badge">${t('ruleLabel')}</div>
+      <button class="learn-btn">${t('learnMore')}</button>`;
+    card.addEventListener('click', e => { if (!e.target.closest('.learn-btn')) askAboutRule(r); });
+    card.querySelector('.learn-btn').addEventListener('click', e => { e.stopPropagation(); askAboutRule(r); });
+    grid.appendChild(card);
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Quiz
+═══════════════════════════════════════════════════════════ */
+async function generateQuiz() {
+  const rule = document.getElementById('quiz-rule-input').value.trim();
+  const ql   = document.getElementById('quiz-lang-select').value;
+  if (!rule) { showToast(lang === 'ar' ? 'أدخل اسم القاعدة أولاً' : 'Enter a rule name first.'); return; }
+
+  currentQuizRule = rule;
+  const btn = document.getElementById('quiz-btn');
+  btn.disabled = true;
+  document.getElementById('quiz-btn-lbl').textContent = t('loadingQuiz');
+  document.getElementById('quiz-result').classList.remove('visible');
+
+  try {
+    const data = await apiPost('/api/v1/quiz', { rule, language: ql });
+    renderQuiz(data, ql);
+  } catch {
+    showToast(t('errorApi'));
+  } finally {
+    btn.disabled = false;
+    document.getElementById('quiz-btn-lbl').textContent = t('generate');
+  }
+}
+
+function renderQuiz(data, ql) {
+  quizAnswered = false;
+  const isAr   = ql === 'ar';
+  const letters = ['A', 'B', 'C', 'D'];
+
+  const qEl = document.getElementById('quiz-question');
+  qEl.textContent = data.question;
+  qEl.className   = isAr ? 'ar' : '';
+
+  const grid = document.getElementById('options-grid');
+  grid.innerHTML = '';
+  (data.options || []).forEach((opt, i) => {
+    const btn = document.createElement('button');
+    btn.className = `option-btn${isAr ? ' ar' : ''}`;
+    btn.innerHTML = `<span class="opt-letter">${letters[i]}</span><span>${opt}</span>`;
+    btn.onclick = () => selectOption(i, data.correct_index, data.explanation, ql);
+    grid.appendChild(btn);
+  });
+
+  const expl = document.getElementById('explanation-box');
+  expl.textContent = '';
+  expl.className   = `explanation-box${isAr ? ' ar' : ''}`;
+  document.getElementById('quiz-result').classList.add('visible');
+}
+
+function selectOption(chosen, correct, explanation, ql) {
+  if (quizAnswered) return;
+  quizAnswered = true;
+  const isCorrect = chosen === correct;
+
+  document.querySelectorAll('.option-btn').forEach((btn, i) => {
+    btn.disabled = true;
+    if (i === correct) btn.classList.add('correct');
+    else if (i === chosen) btn.classList.add('wrong');
+  });
+
+  const expl = document.getElementById('explanation-box');
+  expl.textContent = explanation;
+  expl.classList.add('visible');
+
+  // Track quiz result
+  saveProgress(currentQuizRule || 'general', isCorrect ? 1.0 : 0.0, 'quiz');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Progress
+═══════════════════════════════════════════════════════════ */
+async function saveProgress(ruleName, score, type) {
+  if (!authToken || !currentUser) return;
+  try {
+    await apiPost('/api/v1/progress',
+      { user_id: currentUser.user_id, rule_name: ruleName, score, type },
+      authToken
+    );
+  } catch {
+    // silent — progress tracking should not disrupt the UX
+  }
+}
+
+async function loadProgress() {
+  if (!authToken || !currentUser) return;
+  const uid = currentUser.user_id;
+
+  document.getElementById('weak-rules-list').innerHTML =
+    `<div class="spinner-row" style="padding:16px"><div class="spinner"></div><span>${t('loadingRules')}</span></div>`;
+  document.getElementById('history-list').innerHTML = '';
+
+  try {
+    const data = await apiFetch(`/api/v1/progress/${uid}`, authToken);
+    renderProgress(data);
+  } catch {
+    document.getElementById('weak-rules-list').innerHTML =
+      `<div class="empty-state">⚠️ ${t('errorApi')}</div>`;
+  }
+}
+
+function scoreColor(avg) {
+  if (avg >= 0.75) return '#10b981';
+  if (avg >= 0.4)  return '#f59e0b';
+  return '#ef4444';
+}
+function scoreLabel(avg) {
+  if (avg >= 0.75) return t('scoreGood');
+  if (avg >= 0.4)  return t('scoreFair');
+  return t('scoreWeak');
+}
+
+function renderProgress(data) {
+  document.getElementById('stat-sessions').textContent = data.total_sessions;
+
+  // Weak rules
+  const list = document.getElementById('weak-rules-list');
+  if (!data.weak_rules.length) {
+    list.innerHTML = `<div class="empty-state">${t('progEmpty')}</div>`;
+  } else {
+    list.innerHTML = '';
+    data.weak_rules.forEach(w => {
+      const pct   = Math.round(w.avg_score * 100);
+      const color = scoreColor(w.avg_score);
+      const attLbl = w.attempts === 1 ? t('attempts') : t('attemptsP');
+      const row = document.createElement('div');
+      row.className = 'weak-rule-row';
+      row.innerHTML = `
+        <div class="wr-icon">${ruleIcon(w.rule_name)}</div>
+        <div class="wr-info">
+          <div class="wr-name">${w.rule_name}</div>
+          <div class="wr-meta">${w.attempts} ${attLbl}</div>
+        </div>
+        <div class="score-bar-wrap">
+          <div class="score-bar-bg">
+            <div class="score-bar-fill" style="width:${pct}%;background:${color}"></div>
+          </div>
+          <div class="score-label" style="color:${color}">${pct}% — ${scoreLabel(w.avg_score)}</div>
+        </div>`;
+      // Click to ask about this rule
+      row.style.cursor = 'pointer';
+      row.onclick = () => askAboutRule(w.rule_name);
+      list.appendChild(row);
+    });
+  }
+
+  // History
+  const hist = document.getElementById('history-list');
+  if (!data.history.length) {
+    hist.innerHTML = `<div class="empty-state">${t('progEmpty')}</div>`;
+  } else {
+    hist.innerHTML = '';
+    data.history.slice(0, 30).forEach(h => {
+      const pct   = Math.round(h.score * 100);
+      const color = scoreColor(h.score);
+      const date  = h.created_at.slice(0, 16).replace('T', ' ');
+      const row = document.createElement('div');
+      row.className = 'history-row';
+      row.innerHTML = `
+        <span class="h-type">${h.type}</span>
+        <span class="h-rule">${h.rule_name}</span>
+        <span class="h-score" style="color:${color}">${pct}%</span>
+        <span class="h-date">${date}</span>`;
+      hist.appendChild(row);
+    });
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   API helpers
+═══════════════════════════════════════════════════════════ */
+async function apiFetch(path, token = null) {
+  const headers = {};
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  const res = await fetch(API + path, { headers });
+  if (!res.ok) {
+    const err = new Error((await res.json().catch(() => ({ detail: res.statusText }))).detail);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+async function apiPost(path, body, token = null) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  const res = await fetch(API + path, { method: 'POST', headers, body: JSON.stringify(body) });
+  if (!res.ok) {
+    const err = new Error((await res.json().catch(() => ({ detail: res.statusText }))).detail);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Toast
+═══════════════════════════════════════════════════════════ */
+let toastTimer;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3500);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Init
+═══════════════════════════════════════════════════════════ */
+applyI18n();
+</script>
+</body>
+</html>

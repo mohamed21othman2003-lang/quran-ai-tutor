@@ -1,0 +1,26 @@
+# API
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+python-multipart==0.0.12
+
+# LLM + RAG  (latest compatible stack — langchain 1.x + chromadb 1.x)
+openai>=1.57.0
+langchain>=1.0.0
+langchain-openai>=1.0.0
+langchain-community>=0.4.0
+langchain-chroma>=1.0.0
+chromadb>=1.0.0
+numpy>=2.0.0,<3
+
+# Config
+pydantic>=2.10.0
+pydantic-settings>=2.6.0
+python-dotenv==1.0.1
+
+# Auth & database
+aiosqlite==0.20.0
+python-jose[cryptography]==3.3.0
+bcrypt>=4.0.0
+
+# Utilities
+tiktoken==0.8.0
