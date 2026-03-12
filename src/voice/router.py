@@ -8,6 +8,9 @@ import difflib
 import io
 import logging
 import re
+import subprocess
+import tempfile
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -64,14 +67,87 @@ def _get_pipeline():
     return _asr_pipeline
 
 
-def _load_audio(file_bytes: bytes) -> np.ndarray:
+def _ffmpeg_exe() -> str:
+    """Return path to ffmpeg binary — prefers system ffmpeg, falls back to imageio-ffmpeg bundle."""
+    import shutil
+    sys_ffmpeg = shutil.which("ffmpeg")
+    if sys_ffmpeg:
+        return sys_ffmpeg
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except ImportError:
+        raise RuntimeError(
+            "ffmpeg not found. Install ffmpeg system-wide or add imageio-ffmpeg to requirements."
+        )
+
+
+def _to_wav(file_bytes: bytes, original_filename: str = "audio") -> bytes:
+    """Convert any audio format to 16 kHz mono WAV using ffmpeg.
+
+    Uses two temp files (input + output) so ffmpeg can seek the container.
+    Returns the raw WAV bytes.
+    """
+    suffix = Path(original_filename).suffix or ".webm"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as src:
+        src.write(file_bytes)
+        src_path = src.name
+
+    dst_path = src_path + ".wav"
+    try:
+        result = subprocess.run(
+            [
+                _ffmpeg_exe(),
+                "-y",            # overwrite output without asking
+                "-i", src_path,  # input file
+                "-ar", "16000",  # resample to 16 kHz
+                "-ac", "1",      # mono
+                "-f", "wav",     # force WAV container
+                dst_path,
+            ],
+            capture_output=True,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(result.stderr.decode(errors="replace"))
+        return Path(dst_path).read_bytes()
+    finally:
+        Path(src_path).unlink(missing_ok=True)
+        Path(dst_path).unlink(missing_ok=True)
+
+
+def _load_audio(file_bytes: bytes, filename: str = "audio") -> np.ndarray:
     """Decode audio bytes to a 16 kHz mono float32 numpy array.
 
-    Supports WAV, FLAC, OGG natively via soundfile.
-    MP3/M4A/WebM require ffmpeg to be installed (provided via nixpacks.toml).
+    For WAV/FLAC files soundfile reads directly.
+    For WebM/MP3/OGG/M4A, ffmpeg converts to WAV first, then soundfile reads.
     """
     import librosa
-    audio, _ = librosa.load(io.BytesIO(file_bytes), sr=16000, mono=True)
+
+    # Detect WebM/Matroska by magic bytes (0x1A 0x45 0xDF 0xA3)
+    # Also convert MP3 (ID3 / 0xFF 0xFB), MP4/M4A (ftyp box), OGG (OggS)
+    # and any format librosa can't open directly.
+    _NEEDS_FFMPEG = {b"\x1a\x45\xdf\xa3", b"ID3", b"\xff\xfb", b"\xff\xf3", b"\xff\xf2"}
+    magic = file_bytes[:4]
+    needs_convert = (
+        any(file_bytes.startswith(sig) for sig in _NEEDS_FFMPEG)
+        or magic[4:8] == b"ftyp"           # MP4/M4A
+        or file_bytes[:4] == b"OggS"       # OGG
+        or filename.lower().endswith((".webm", ".mp3", ".m4a", ".ogg", ".opus"))
+    )
+
+    if needs_convert:
+        logger.debug("Converting %s via ffmpeg before loading", filename)
+        try:
+            wav_bytes = _to_wav(file_bytes, filename)
+        except FileNotFoundError:
+            raise RuntimeError(
+                "ffmpeg not found. Install ffmpeg to support WebM/MP3/OGG audio."
+            )
+        audio, _ = librosa.load(io.BytesIO(wav_bytes), sr=16000, mono=True)
+    else:
+        audio, _ = librosa.load(io.BytesIO(file_bytes), sr=16000, mono=True)
+
     return audio.astype(np.float32)
 
 
@@ -147,7 +223,7 @@ async def voice_check(
 
     # --- Decode audio ---
     try:
-        audio_array = _load_audio(file_bytes)
+        audio_array = _load_audio(file_bytes, filename=audio.filename or "audio.webm")
     except Exception as exc:
         logger.exception("Audio decode failed")
         raise HTTPException(
