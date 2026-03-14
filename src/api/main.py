@@ -237,3 +237,43 @@ async def ingest(x_admin_key: str = Header(..., alias="X-Admin-Key")) -> Any:
     except Exception as exc:
         logger.exception("Error in /admin/ingest")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+class QuranIngestResponse(BaseModel):
+    message: str
+    ayahs_indexed: int
+    markdown_files: int
+
+
+@app.post(
+    "/api/v1/admin/ingest-quran",
+    response_model=QuranIngestResponse,
+    summary="Ingest full Quran into quran_verses collection",
+    tags=["Admin"],
+)
+async def ingest_quran(x_admin_key: str = Header(..., alias="X-Admin-Key")) -> Any:
+    """Download quran_full.json (if absent), write per-Surah markdown files, and
+    build the quran_verses ChromaDB collection used by the voice verifier.
+
+    This is a one-time setup step (~6 236 embeddings, takes a few minutes).
+    """
+    if x_admin_key != settings.admin_api_key:
+        raise HTTPException(status_code=403, detail="Invalid admin key.")
+    try:
+        from src.rag.ingest_quran import (
+            build_quran_collection,
+            create_markdown_files,
+            ensure_quran_json,
+        )
+        loop = asyncio.get_event_loop()
+        quran_data = await loop.run_in_executor(None, ensure_quran_json)
+        md_count = await loop.run_in_executor(None, create_markdown_files, quran_data)
+        ayah_count = await loop.run_in_executor(None, build_quran_collection, quran_data)
+        return QuranIngestResponse(
+            message="Quran ingestion complete.",
+            ayahs_indexed=ayah_count,
+            markdown_files=md_count,
+        )
+    except Exception as exc:
+        logger.exception("Error in /admin/ingest-quran")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc

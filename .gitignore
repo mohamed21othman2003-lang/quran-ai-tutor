@@ -7,6 +7,10 @@ data/quran_tutor.db
 # Vector store
 data/chroma_db/
 
+# Generated Quran data (re-created by ingest_quran.py)
+data/knowledge/quran_full.json
+data/knowledge/quran/
+
 # Python
 __pycache__/
 *.py[cod]

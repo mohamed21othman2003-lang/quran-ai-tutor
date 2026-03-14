@@ -17,13 +17,23 @@ import numpy as np
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
+from src.rag.quran_verifier import QuranVerifier
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/voice", tags=["Voice"])
 
-# Lazy singleton — loaded on first request so startup stays fast
+# Lazy singletons — loaded on first request so startup stays fast
 _asr_pipeline: Any = None
 _ASR_MODEL = "tarteel-ai/whisper-base-ar-quran"
+_quran_verifier: QuranVerifier | None = None
+
+
+def _get_verifier() -> QuranVerifier:
+    global _quran_verifier
+    if _quran_verifier is None:
+        _quran_verifier = QuranVerifier()
+    return _quran_verifier
 
 # Arabic diacritics (harakat) — stripped before comparison so missing
 # tashkeel in user input doesn't count as an error
@@ -43,9 +53,16 @@ class RecitationError(BaseModel):
 class VoiceCheckResponse(BaseModel):
     transcribed_text: str
     expected_text: str
-    match_score: float          # 0.0 – 1.0
-    is_correct: bool            # True if match_score >= 0.85
+    match_score: float              # 0.0 – 1.0
+    is_correct: bool                # True if match_score >= 0.85
     errors: list[RecitationError]
+    # Quran verification fields
+    quran_found: bool               # True if expected_text matched a known ayah
+    quran_reference: str            # e.g. "2:255"
+    quran_surah: str                # Arabic surah name
+    quran_canonical: str            # exact Quran text from DB
+    quran_mismatch: bool            # True if transcription contradicts canonical text
+    mismatch_detail: str            # explanation when quran_mismatch is True
 
 
 # ------------------------------------------------------------------
@@ -240,12 +257,27 @@ async def voice_check(
         logger.exception("ASR inference failed")
         raise HTTPException(status_code=500, detail=f"Transcription failed: {exc}") from exc
 
-    # --- Compare ---
+    # --- Compare vs expected text ---
     if expected_text.strip():
         score, errors = _compare(transcribed, expected_text)
     else:
-        # No expected text — return transcription only, score = 1.0
         score, errors = 1.0, []
+
+    # --- Quran DB verification ---
+    quran_info: dict = {
+        "quran_found": False, "quran_reference": "", "quran_surah": "",
+        "quran_canonical": "", "quran_mismatch": False, "mismatch_detail": "",
+    }
+    try:
+        verifier = _get_verifier()
+        if verifier.is_populated():
+            quran_info = verifier.verify(transcribed, expected_text)
+        else:
+            logger.debug(
+                "Quran verifier not populated — run `python -m src.rag.ingest_quran` to enable."
+            )
+    except Exception:
+        logger.exception("Quran verification failed — skipping.")
 
     return VoiceCheckResponse(
         transcribed_text=transcribed,
@@ -253,4 +285,5 @@ async def voice_check(
         match_score=score,
         is_correct=score >= 0.85,
         errors=errors,
+        **quran_info,
     )
