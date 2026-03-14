@@ -681,16 +681,28 @@
     .error-words .got { color: #ef4444; }
     .error-words .exp { color: var(--green-700); }
 
-    .voice-success {
+    .voice-summary {
       display: flex; align-items: center; gap: 10px;
-      background: var(--green-50);
-      border: 1px solid var(--green-400);
       border-radius: 10px;
       padding: 14px 18px;
       margin-top: 16px;
       font-weight: 600;
-      color: var(--green-800);
       font-size: 1rem;
+    }
+    .voice-summary.success {
+      background: var(--green-50);
+      border: 1px solid var(--green-400);
+      color: var(--green-800);
+    }
+    .voice-summary.warning {
+      background: #fffbeb;
+      border: 1px solid #fcd34d;
+      color: #92400e;
+    }
+    .voice-summary.danger {
+      background: #fff5f5;
+      border: 1px solid #fca5a5;
+      color: #991b1b;
     }
   </style>
 </head>
@@ -948,9 +960,7 @@
       </div>
 
       <!-- No-errors message -->
-      <div class="voice-success hidden" id="voice-success">
-        <span>✅</span> <span id="voice-success-msg">Excellent recitation!</span>
-      </div>
+      <div class="voice-summary hidden" id="voice-success"></div>
     </div>
   </div>
 </main>
@@ -1017,7 +1027,9 @@ const i18n = {
     errorsTitle: 'RECITATION ERRORS',
     errSubstitution: 'Substitution', errMissing: 'Missing word', errExtra: 'Extra word',
     errExpected: 'Expected:', errGot: 'Got:',
-    voiceSuccess: 'Excellent recitation! No errors found.',
+    voiceSummaryGood:    '✅ Excellent recitation! No errors found.',
+    voiceSummaryWarning: '⚠️ Good recitation with some errors.',
+    voiceSummaryDanger:  '❌ Recitation needs review.',
     scoreLabelGood: 'Match', scoreLabelWeak: 'Match',
   },
   ar: {
@@ -1061,7 +1073,9 @@ const i18n = {
     errorsTitle: 'أخطاء التلاوة',
     errSubstitution: 'إبدال', errMissing: 'كلمة مفقودة', errExtra: 'كلمة زائدة',
     errExpected: 'المتوقع:', errGot: 'المُلفوظ:',
-    voiceSuccess: 'تلاوة ممتازة! لا أخطاء.',
+    voiceSummaryGood:    '✅ تلاوة ممتازة! لا أخطاء.',
+    voiceSummaryWarning: '⚠️ تلاوة جيدة مع بعض الأخطاء.',
+    voiceSummaryDanger:  '❌ تلاوة تحتاج مراجعة.',
     scoreLabelGood: 'تطابق', scoreLabelWeak: 'تطابق',
   }
 };
@@ -1113,7 +1127,6 @@ function applyI18n() {
   $('transcribed-lbl').textContent  = t('transcribedLbl');
   $('expected-out-lbl').textContent = t('expectedOutLbl');
   $('errors-title').textContent  = t('errorsTitle');
-  $('voice-success-msg').textContent = t('voiceSuccess');
   // Reset status label to idle text if not currently recording
   const statusEl = $('voice-status-lbl');
   if (statusEl && !statusEl.classList.contains('recording') && !statusEl.classList.contains('processing')) {
@@ -1700,16 +1713,17 @@ function renderVoiceResult(data) {
   expOut.style.display = data.expected_text ? '' : 'none';
 
   // Errors
-  const errWrap = document.getElementById('voice-errors-wrap');
-  const errList = document.getElementById('voice-errors-list');
-  const successEl = document.getElementById('voice-success');
+  const errWrap  = document.getElementById('voice-errors-wrap');
+  const errList  = document.getElementById('voice-errors-list');
+  const summaryEl = document.getElementById('voice-success');
+  const hasErrors = data.errors && data.errors.length > 0;
 
+  // Error list
   errList.innerHTML = '';
-  if (data.errors && data.errors.length > 0) {
+  if (hasErrors) {
     errWrap.classList.remove('hidden');
-    successEl.classList.add('hidden');
     data.errors.forEach(err => {
-      const icons = { substitution: '↔️', missing_word: '❌', extra_word: '➕' };
+      const icons  = { substitution: '↔️', missing_word: '❌', extra_word: '➕' };
       const labels = {
         substitution: t('errSubstitution'),
         missing_word: t('errMissing'),
@@ -1730,7 +1744,19 @@ function renderVoiceResult(data) {
     });
   } else {
     errWrap.classList.add('hidden');
-    successEl.classList.remove('hidden');
+  }
+
+  // Summary banner — always shown, colour + message driven by score
+  summaryEl.classList.remove('hidden', 'success', 'warning', 'danger');
+  if (pct >= 85 && !hasErrors) {
+    summaryEl.className = 'voice-summary success';
+    summaryEl.textContent = t('voiceSummaryGood');
+  } else if (pct >= 60) {
+    summaryEl.className = 'voice-summary warning';
+    summaryEl.textContent = t('voiceSummaryWarning');
+  } else {
+    summaryEl.className = 'voice-summary danger';
+    summaryEl.textContent = t('voiceSummaryDanger');
   }
 
   document.getElementById('voice-result').classList.remove('hidden');
