@@ -6,6 +6,7 @@ Model is downloaded on first request (~290 MB) and cached for subsequent calls.
 
 import difflib
 import io
+import json
 import logging
 import re
 import subprocess
@@ -15,8 +16,11 @@ from typing import Any
 
 import numpy as np
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
-from pydantic import BaseModel
+from langchain_core.messages import HumanMessage
+from langchain_openai import ChatOpenAI
+from pydantic import BaseModel, Field
 
+from src.config import settings
 from src.rag.quran_verifier import QuranVerifier
 
 logger = logging.getLogger(__name__)
@@ -34,6 +38,21 @@ def _get_verifier() -> QuranVerifier:
     if _quran_verifier is None:
         _quran_verifier = QuranVerifier()
     return _quran_verifier
+
+
+_report_llm: ChatOpenAI | None = None
+
+
+def _get_report_llm() -> ChatOpenAI:
+    global _report_llm
+    if _report_llm is None:
+        _report_llm = ChatOpenAI(
+            model="gpt-4o",
+            temperature=0.3,
+            max_tokens=1500,
+            openai_api_key=settings.openai_api_key,
+        )
+    return _report_llm
 
 # Arabic diacritics (harakat) — stripped before comparison so missing
 # tashkeel in user input doesn't count as an error
@@ -238,6 +257,35 @@ async def voice_check(
     if len(file_bytes) > 25 * 1024 * 1024:  # 25 MB cap
         raise HTTPException(status_code=413, detail="Audio file exceeds 25 MB limit.")
 
+    # --- Validate expected_text against Quran DB BEFORE running ASR ---
+    # This gives instant 422 rejection without loading the heavy ASR model.
+    quran_info: dict = {
+        "quran_found": False, "quran_reference": "", "quran_surah": "",
+        "quran_canonical": "", "quran_mismatch": False, "mismatch_detail": "",
+    }
+    canonical_match: dict | None = None  # populated if expected_text is a valid ayah
+
+    if expected_text.strip():
+        verifier = _get_verifier()
+        if verifier.is_populated():
+            canonical_match = verifier.find_closest_ayah(expected_text)
+            if canonical_match is None:
+                raise HTTPException(
+                    status_code=422,
+                    detail={
+                        "code": "AYAH_NOT_FOUND",
+                        "en": "The provided text was not found in the Quran verse database. "
+                              "Please enter a valid ayah.",
+                        "ar": "لم يُعثر على النص المُدخَل في قاعدة بيانات الآيات القرآنية. "
+                              "يُرجى إدخال آية قرآنية صحيحة.",
+                    },
+                )
+        else:
+            logger.warning(
+                "Quran verifier not populated — comparing vs user input. "
+                "Run `python -m src.rag.ingest_quran` to enable canonical comparison."
+            )
+
     # --- Decode audio ---
     try:
         audio_array = _load_audio(file_bytes, filename=audio.filename or "audio.webm")
@@ -248,42 +296,176 @@ async def voice_check(
             detail=f"Could not decode audio file: {exc}",
         ) from exc
 
+    # --- Reject silent / empty audio (Whisper crashes on all-zero input) ---
+    MIN_DURATION_S = 0.5   # at least half a second
+    MIN_RMS = 1e-4          # non-trivial energy (avoids recording noise floor)
+    if len(audio_array) < int(MIN_DURATION_S * 16000):
+        raise HTTPException(status_code=422, detail="Audio is too short (minimum 0.5 s).")
+    rms = float(np.sqrt(np.mean(audio_array ** 2)))
+    if rms < MIN_RMS:
+        raise HTTPException(status_code=422, detail="No speech detected in the audio. Please record your recitation and try again.")
+
     # --- Transcribe ---
     try:
         asr = _get_pipeline()
         result = asr({"raw": audio_array, "sampling_rate": 16000})
         transcribed = result["text"].strip()
+    except IndexError as exc:
+        # Whisper model crashes on near-silent / too-short audio (index out of bounds)
+        logger.warning("ASR IndexError — likely silent audio: %s", exc)
+        raise HTTPException(
+            status_code=422,
+            detail="No speech detected in the audio. Please record your recitation and try again.",
+        ) from exc
     except Exception as exc:
         logger.exception("ASR inference failed")
         raise HTTPException(status_code=500, detail=f"Transcription failed: {exc}") from exc
 
-    # --- Compare vs expected text ---
-    if expected_text.strip():
-        score, errors = _compare(transcribed, expected_text)
+    # --- Build canonical comparison target ---
+    compare_target: str = expected_text  # fallback when verifier not populated
+
+    if canonical_match is not None:
+        canonical = canonical_match["canonical_text"]
+        compare_target = canonical
+
+        # Mismatch: diacritic-insensitive diff of transcription vs Mushaf
+        norm_t = _normalize(transcribed)
+        norm_c = _normalize(canonical)
+        mismatch = bool(norm_t and norm_c and norm_t != norm_c)
+
+        quran_info = {
+            "quran_found":     True,
+            "quran_reference": canonical_match["reference"],
+            "quran_surah":     canonical_match["surah_name"],
+            "quran_canonical": canonical,
+            "quran_mismatch":  mismatch,
+            "mismatch_detail": (
+                f"Transcription does not match canonical text for "
+                f"Surah {canonical_match['surah_name']} ({canonical_match['reference']}). "
+                f"Canonical: {canonical}"
+            ) if mismatch else "",
+        }
+
+    # --- Score against canonical (or user input as fallback) ---
+    if compare_target.strip():
+        score, errors = _compare(transcribed, compare_target)
     else:
         score, errors = 1.0, []
 
-    # --- Quran DB verification ---
-    quran_info: dict = {
-        "quran_found": False, "quran_reference": "", "quran_surah": "",
-        "quran_canonical": "", "quran_mismatch": False, "mismatch_detail": "",
-    }
-    try:
-        verifier = _get_verifier()
-        if verifier.is_populated():
-            quran_info = verifier.verify(transcribed, expected_text)
-        else:
-            logger.debug(
-                "Quran verifier not populated — run `python -m src.rag.ingest_quran` to enable."
-            )
-    except Exception:
-        logger.exception("Quran verification failed — skipping.")
+    # Return canonical text as expected_text so the frontend always shows real Mushaf
+    display_expected = quran_info.get("quran_canonical") or expected_text
 
     return VoiceCheckResponse(
         transcribed_text=transcribed,
-        expected_text=expected_text,
+        expected_text=display_expected,
         match_score=score,
         is_correct=score >= 0.85,
         errors=errors,
         **quran_info,
     )
+
+
+# ------------------------------------------------------------------
+# Recitation Report
+# ------------------------------------------------------------------
+
+_REPORT_PROMPT = """\
+You are an expert Tajweed teacher. Generate a detailed, encouraging recitation \
+improvement report for a student.
+
+Student recited: {transcribed}
+Expected ayah:   {expected}
+Match score:     {score_pct}%
+Errors detected: {errors}
+
+Instructions:
+- Analyse the student's performance honestly but encouragingly.
+- Explain each error type and why it matters for correct recitation.
+- Give 3–5 specific, actionable improvement tips.
+- Suggest a practice routine.
+- Assign a letter grade: A (≥90%), B (≥75%), C (≥60%), D (≥40%), F (<40%).
+- Respond in {language}.
+
+Return a JSON object with exactly these keys:
+  "grade":     letter grade string (A/B/C/D/F)
+  "overall":   paragraph — overall assessment of the recitation
+  "error_analysis": paragraph — analysis of specific errors
+  "tips":      array of 3–5 actionable tip strings
+  "practice":  paragraph — suggested practice routine
+
+Return only valid JSON, no markdown fences."""
+
+
+class ErrorItem(BaseModel):
+    type: str
+    expected: str
+    got: str
+
+
+class ReportRequest(BaseModel):
+    transcribed: str = Field(..., min_length=1)
+    expected: str = Field(default="")
+    errors: list[ErrorItem] = Field(default_factory=list)
+    score: float = Field(..., ge=0.0, le=1.0)
+    language: str = Field(default="en", pattern="^(en|ar)$")
+
+
+class ReportResponse(BaseModel):
+    grade: str
+    overall: str
+    error_analysis: str
+    tips: list[str]
+    practice: str
+
+
+@router.post("/report", response_model=ReportResponse, summary="Generate recitation report")
+async def recitation_report(request: ReportRequest) -> Any:
+    """Generate a full pedagogical recitation report using GPT-4o.
+
+    Takes the transcription, expected ayah, detected errors, and match score,
+    and returns a structured report with a grade, error analysis, improvement
+    tips, and a practice routine.
+    """
+    errors_str = (
+        "\n".join(
+            f"  - {e.type}: expected '{e.expected}', got '{e.got}'"
+            for e in request.errors
+        )
+        if request.errors
+        else "  None detected."
+    )
+    lang_label = "Arabic" if request.language == "ar" else "English"
+    prompt = _REPORT_PROMPT.format(
+        transcribed=request.transcribed or "(no transcription)",
+        expected=request.expected or "(no expected text provided)",
+        score_pct=round(request.score * 100),
+        errors=errors_str,
+        language=lang_label,
+    )
+
+    try:
+        llm = _get_report_llm()
+        response = await llm.ainvoke([HumanMessage(content=prompt)])
+        raw = response.content.strip()
+    except Exception as exc:
+        logger.exception("LLM call failed in /voice/report")
+        raise HTTPException(status_code=500, detail=f"AI error: {exc}") from exc
+
+    try:
+        data = json.loads(raw)
+        return ReportResponse(
+            grade=data.get("grade", "—"),
+            overall=data.get("overall", ""),
+            error_analysis=data.get("error_analysis", ""),
+            tips=data.get("tips", []),
+            practice=data.get("practice", ""),
+        )
+    except json.JSONDecodeError:
+        logger.warning("GPT-4o returned non-JSON for report; raw: %.300s", raw)
+        return ReportResponse(
+            grade="—",
+            overall=raw[:800],
+            error_analysis="",
+            tips=[],
+            practice="",
+        )

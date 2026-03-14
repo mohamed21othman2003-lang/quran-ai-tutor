@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 COLLECTION_NAME = "quran_verses"
 # Cosine distance threshold: 0 = identical, 2 = opposite.
 # Matches below this distance are considered valid Quran text.
-_MATCH_DISTANCE_THRESHOLD = 0.45
+_MATCH_DISTANCE_THRESHOLD = 0.65
 
 _DIACRITICS = re.compile(
     r"[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E4\u06E7\u06E8\u06EA-\u06ED]"

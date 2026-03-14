@@ -31,6 +31,8 @@ from src.auth.router import router as auth_router
 from src.config import settings
 from src.progress.router import router as progress_router
 from src.rag.pipeline import RAGPipeline
+from src.search.router import router as search_router
+from src.tajweed.router import router as tajweed_router
 from src.voice.router import router as voice_router
 
 # ------------------------------------------------------------------
@@ -112,6 +114,8 @@ async def serve_frontend():
 app.include_router(auth_router)
 app.include_router(progress_router)
 app.include_router(voice_router)
+app.include_router(search_router)
+app.include_router(tajweed_router)
 
 # ------------------------------------------------------------------
 # Pydantic models
