@@ -7,6 +7,15 @@ data/quran_tutor.db
 # Vector store
 data/chroma_db/
 
+# Local model/cache artifacts
+.cache/
+.huggingface/
+*.pt
+*.pth
+*.onnx
+*.safetensors
+*.bin
+
 # Generated Quran data (re-created by ingest_quran.py)
 data/knowledge/quran_full.json
 data/knowledge/quran/
@@ -21,12 +30,25 @@ __pycache__/
 dist/
 build/
 .eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # Virtual environments
 venv/
 .venv/
 env/
 .env/
+
+# Media / archives / local artifacts
+*.wav
+*.mp3
+*.webm
+*.flac
+*.ogg
+*.m4a
+*.opus
+*.zip
 
 # IDE
 .vscode/

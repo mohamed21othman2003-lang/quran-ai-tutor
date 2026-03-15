@@ -26,7 +26,9 @@ bcrypt>=4.0.0
 tiktoken==0.8.0
 
 # Voice — Quran ASR (tarteel-ai/whisper-base-ar-quran)
-torch>=2.0.0
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.5.1+cpu; platform_system == "Linux"
+torch>=2.0.0; platform_system != "Linux"
 transformers>=4.40.0
 librosa>=0.10.0
 soundfile>=0.12.0

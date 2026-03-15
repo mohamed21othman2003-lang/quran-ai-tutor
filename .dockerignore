@@ -1,0 +1,54 @@
+.git
+.git/
+.github/
+
+# Python caches
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment & local config
+.env
+.env.*
+!.env.example
+
+# Build/test artifacts
+build/
+dist/
+*.egg-info/
+htmlcov/
+.coverage
+coverage/
+*.log
+
+# Large local data/artifacts not required for build
+*.zip
+*.wav
+*.mp3
+*.webm
+*.flac
+*.ogg
+*.m4a
+*.opus
+*.pt
+*.pth
+*.bin
+*.onnx
+*.safetensors
+
+# Local runtime/generated data
+data/chroma_db/
+data/quran_tutor.db
+
+# Local tool caches
+.cache/
+.huggingface/
