@@ -118,11 +118,12 @@ class TafsirStore:
                 docs.append(Document(
                     page_content=chunk,
                     metadata={
-                        "source":    row["name_en"],
-                        "source_ar": row["name_ar"],
-                        "surah":     row["surah"],
-                        "ayah":      row["ayah"],
-                        "reference": row["reference"],
+                        "source":      row["name_en"],
+                        "source_ar":   row["name_ar"],
+                        "tafseer_id":  row["tafseer_id"],
+                        "surah":       row["surah"],
+                        "ayah":        row["ayah"],
+                        "reference":   row["reference"],
                     },
                 ))
 

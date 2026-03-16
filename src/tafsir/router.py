@@ -1,10 +1,10 @@
-"""Tafsir search endpoint.
+"""Tafsir endpoints.
 
 POST /api/v1/tafsir/search
   Accepts an ayah reference (``surah:verse``) **or** a free-text query, or both.
 
   Lookup modes (evaluated in order):
-  1. Reference lookup  — exact SQLite query against the downloaded tafseer DBs.
+  1. Reference lookup  — exact SQLite query against tafaseer.db.
                          Always available once the DB is downloaded (~36 MB, lazy).
   2. Semantic search   — ChromaDB cosine-similarity search.
                          Requires prior ingestion via POST /api/v1/admin/ingest-tafsir.
@@ -12,18 +12,22 @@ POST /api/v1/tafsir/search
                          and a free-text query was given.
 
   Returns commentary from Ibn Kathir (ابن كثير) and Al-Tabari (الطبري).
+
+GET /api/v1/tafsir/schema  (admin key required)
+  Returns the DB schema, table row counts, and TafseerName mapping.
 """
 
 import logging
 import re
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field, model_validator
 
+from src.config import settings
 from src.tafsir.database import (
-    TAFSIR_SOURCES,
-    ensure_databases,
+    ensure_database,
+    get_schema_info,
     get_tafsir_for_ayah,
     search_tafsir_text,
 )
@@ -34,11 +38,6 @@ router = APIRouter(prefix="/api/v1/tafsir", tags=["Tafsir"])
 
 _store: TafsirStore | None = None
 _REF_RE = re.compile(r"^(\d{1,3}):(\d{1,3})$")
-
-# Arabic names keyed by the English name returned by database.py
-_AR_NAMES: dict[str, str] = {
-    meta["name_en"]: meta["name_ar"] for meta in TAFSIR_SOURCES.values()
-}
 
 
 def _get_store() -> TafsirStore:
@@ -124,14 +123,14 @@ async def search_tafsir(request: TafsirSearchRequest) -> Any:
     - **Semantic mode** requires running ``POST /api/v1/admin/ingest-tafsir``
       once to build the ChromaDB index (~12 000 embeddings, a few minutes).
     """
-    # Ensure the SQLite databases are available (lazy download on first call)
+    # Ensure the SQLite database is available (lazy download on first call)
     try:
-        ensure_databases()
+        ensure_database()
     except Exception as exc:
         logger.exception("Tafseer database download failed")
         raise HTTPException(
             status_code=503,
-            detail=f"Could not load tafseer databases: {exc}",
+            detail=f"Could not load tafseer database: {exc}",
         ) from exc
 
     results: list[TafsirResult] = []
@@ -161,19 +160,19 @@ async def search_tafsir(request: TafsirSearchRequest) -> Any:
             )
 
         resolved_ref = f"{surah}:{ayah}"
-        tafsir_map = get_tafsir_for_ayah(surah, ayah)
+        entries = get_tafsir_for_ayah(surah, ayah)
 
-        if not tafsir_map:
+        if not entries:
             raise HTTPException(
                 status_code=404,
                 detail=(
                     f"No tafsir found for {resolved_ref}. "
-                    "The tafseer databases may still be downloading, or the ayah "
+                    "The database may still be downloading, or the ayah "
                     "number exceeds the surah length."
                 ),
             )
 
-        for _stem, entry in tafsir_map.items():
+        for entry in entries:
             results.append(TafsirResult(
                 source=entry["name_en"],
                 source_ar=entry["name_ar"],
@@ -215,13 +214,13 @@ async def search_tafsir(request: TafsirSearchRequest) -> Any:
             rows = search_tafsir_text(request.query, limit=request.top_k)
             for row in rows:
                 results.append(TafsirResult(
-                    source=row["name_en"],
-                    source_ar=row["name_ar"],
-                    reference=row["reference"],
-                    surah=row["surah"],
-                    ayah=row["ayah"],
-                    text=row["text"],
-                    relevance=0.5,  # keyword match has no relevance score
+                    source=    row["name_en"],
+                    source_ar= row["name_ar"],
+                    reference= row["reference"],
+                    surah=     row["surah"],
+                    ayah=      row["ayah"],
+                    text=      row["text"],
+                    relevance= 0.5,   # keyword match — no numeric relevance
                 ))
 
         if not results:
@@ -240,3 +239,31 @@ async def search_tafsir(request: TafsirSearchRequest) -> Any:
         mode=mode,
         results=results,
     )
+
+
+# ------------------------------------------------------------------
+# Debug: schema inspection (admin only)
+# ------------------------------------------------------------------
+
+@router.get(
+    "/schema",
+    summary="Inspect tafaseer.db schema (admin only)",
+    tags=["Tafsir"],
+)
+async def tafsir_schema(
+    x_admin_key: str = Header(..., alias="X-Admin-Key"),
+) -> Any:
+    """Return the full schema of ``tafaseer.db``: table DDL, column names, row
+    counts, and the TafseerName ID ↔ book mapping.
+
+    Useful for verifying the database was downloaded and extracted correctly.
+    Requires the ``X-Admin-Key`` header.
+    """
+    if x_admin_key != settings.admin_api_key:
+        raise HTTPException(status_code=403, detail="Invalid admin key.")
+    try:
+        ensure_database()
+        return get_schema_info()
+    except Exception as exc:
+        logger.exception("Schema inspection failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc

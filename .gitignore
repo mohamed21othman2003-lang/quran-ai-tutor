@@ -7,6 +7,10 @@ data/quran_tutor.db
 # Vector store
 data/chroma_db/
 
+# Tafsir — downloaded DB and local inspection artifacts
+data/tafsir/
+data/tafsir_inspect/
+
 # Local model/cache artifacts
 .cache/
 .huggingface/

@@ -317,11 +317,11 @@ async def ingest_tafsir(x_admin_key: str = Header(..., alias="X-Admin-Key")) -> 
     if x_admin_key != settings.admin_api_key:
         raise HTTPException(status_code=403, detail="Invalid admin key.")
     try:
-        from src.tafsir.database import ensure_databases
+        from src.tafsir.database import ensure_database
         from src.tafsir.store import TafsirStore
 
         loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, ensure_databases)
+        await loop.run_in_executor(None, ensure_database)
 
         store = TafsirStore()
         chunks = await loop.run_in_executor(None, store.build_collection)

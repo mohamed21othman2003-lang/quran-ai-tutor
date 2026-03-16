@@ -3,16 +3,27 @@
 Downloads ``tafaseer.zip`` from:
   https://github.com/Mr-DDDAlKilanny/tafseer-sqlite-db
 
-The zip contains 8 individual SQLite files (one per tafseer book).
-Each file uses the schema:
-  CREATE TABLE verses (id INTEGER, sura INTEGER, ayah INTEGER, text TEXT)
+The zip contains a **single** file: ``tafaseer.db`` (~146 MB uncompressed).
 
-This module exposes two public functions used by the router and the ChromaDB
-ingest pipeline:
-  - ensure_databases()         — download + extract on first call (lazy)
-  - get_tafsir_for_ayah()      — exact reference lookup (surah, ayah)
-  - search_tafsir_text()       — SQLite LIKE fallback for free-text queries
-  - iter_all_tafsir()          — full-table iterator used during ChromaDB ingestion
+Actual schema (verified against the real database):
+
+    CREATE TABLE TafseerName (
+        ID    INTEGER PRIMARY KEY AUTOINCREMENT,
+        Name  TEXT NOT NULL,   -- Arabic name  e.g. "الطبري"
+        NameE TEXT             -- Latin  name  e.g. "tabary"
+    );
+
+    CREATE TABLE Tafseer (
+        tafseer INTEGER,       -- foreign key → TafseerName.ID
+        sura    INTEGER,
+        ayah    INTEGER,
+        nass    TEXT NOT NULL, -- commentary text in Arabic
+        PRIMARY KEY (tafseer, sura, ayah)
+    );
+
+Tafseer IDs surfaced by this module:
+    1 = Al-Tabari  (الطبري)
+    2 = Ibn Kathir (ابن كثير)
 """
 
 import io
@@ -32,17 +43,12 @@ ZIP_URL = (
     "Mr-DDDAlKilanny/tafseer-sqlite-db/master/tafaseer.zip"
 )
 
-# Only these two books are surfaced via the API; others stay on disk but unused.
-TAFSIR_SOURCES: dict[str, dict[str, str]] = {
-    "tabary":  {"name_en": "Al-Tabari",  "name_ar": "الطبري"},
-    "katheer": {"name_en": "Ibn Kathir", "name_ar": "ابن كثير"},
-}
+DB_FILENAME = "tafaseer.db"   # sole file inside the zip
 
-# Additional filename stems that might appear inside the zip for each book.
-# The first match wins; keys must match TAFSIR_SOURCES keys.
-_STEM_ALIASES: dict[str, list[str]] = {
-    "tabary":  ["tabary", "tabari", "al-tabari", "altabari", "1"],
-    "katheer": ["katheer", "kathir", "ibnkathir", "ibn-kathir", "ibn_kathir", "2"],
+# Tafseer IDs that the public API surfaces (verified from TafseerName table)
+TAFSIR_SOURCES: dict[int, dict[str, str]] = {
+    1: {"name_en": "Al-Tabari",  "name_ar": "الطبري"},
+    2: {"name_en": "Ibn Kathir", "name_ar": "ابن كثير"},
 }
 
 
@@ -50,26 +56,13 @@ _STEM_ALIASES: dict[str, list[str]] = {
 # Internal helpers
 # ------------------------------------------------------------------
 
-def _tafsir_dir() -> Path:
-    return Path(settings.tafsir_db_dir)
+def _db_path() -> Path:
+    return Path(settings.tafsir_db_dir) / DB_FILENAME
 
 
-def _identify_db_stem(zip_member: str) -> str | None:
-    """Map a zip-member filename to a TAFSIR_SOURCES key, or None if not recognised."""
-    name = Path(zip_member).stem.lower()
-    for stem, aliases in _STEM_ALIASES.items():
-        if any(alias in name for alias in aliases):
-            return stem
-    return None
-
-
-def _db_path(stem: str) -> Path:
-    return _tafsir_dir() / f"{stem}.db"
-
-
-def _open(stem: str) -> sqlite3.Connection:
-    path = _db_path(stem)
-    conn = sqlite3.connect(str(path))
+def _open_db() -> sqlite3.Connection:
+    """Return an open, row-factory-enabled connection to tafaseer.db."""
+    conn = sqlite3.connect(str(_db_path()))
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -78,158 +71,200 @@ def _open(stem: str) -> sqlite3.Connection:
 # Download & extraction
 # ------------------------------------------------------------------
 
-def ensure_databases() -> None:
-    """Download and extract tafseer databases on first call.
+def ensure_database() -> None:
+    """Download and extract ``tafaseer.db`` on first call.
 
-    Subsequent calls are a no-op when both ``tabary.db`` and ``katheer.db``
-    already exist in ``settings.tafsir_db_dir``.
+    Subsequent calls are a no-op when the database file already exists
+    in ``settings.tafsir_db_dir``.
     """
-    db_dir = _tafsir_dir()
-    db_dir.mkdir(parents=True, exist_ok=True)
-
-    needed = set(TAFSIR_SOURCES.keys())
-    present = {p.stem for p in db_dir.glob("*.db")}
-    if needed.issubset(present):
-        logger.debug("Tafseer DBs already present at %s", db_dir)
+    target = _db_path()
+    if target.exists():
+        logger.debug("tafaseer.db already present at %s", target)
         return
 
-    logger.info("Downloading tafseer ZIP (~36 MB) from %s …", ZIP_URL)
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    logger.info("Downloading tafaseer.zip (~36 MB compressed) from %s …", ZIP_URL)
     with urllib.request.urlopen(ZIP_URL, timeout=180) as resp:  # noqa: S310
         raw = resp.read()
-    logger.info("Download complete. Extracting …")
+    logger.info("Download complete (%d bytes). Extracting …", len(raw))
 
-    extracted: list[str] = []
     with zipfile.ZipFile(io.BytesIO(raw)) as zf:
-        for member in zf.namelist():
-            if not member.endswith(".db"):
-                continue
-            stem = _identify_db_stem(member)
-            if stem is None:
-                logger.debug("Skipping unrecognised DB in zip: %s", member)
-                continue
-            target = _db_path(stem)
-            target.write_bytes(zf.read(member))
-            extracted.append(f"{member} → {target.name}")
-            logger.info("Extracted %s → %s", member, target.name)
-
-    if not extracted:
-        raise RuntimeError(
-            "Could not identify tabary.db / katheer.db inside the downloaded zip. "
-            "File listing: " + str(
-                [m for m in zipfile.ZipFile(io.BytesIO(raw)).namelist() if m.endswith(".db")]
+        # Locate any .db member — robust against subdirectory nesting
+        db_members = [m for m in zf.namelist() if m.endswith(".db")]
+        if not db_members:
+            raise RuntimeError(
+                f"No .db file found inside tafaseer.zip. "
+                f"Contents: {zf.namelist()}"
             )
-        )
-    logger.info("Tafseer databases ready. Extracted: %s", extracted)
+        # Prefer the exact known filename; otherwise take the first .db
+        chosen = next((m for m in db_members if Path(m).name == DB_FILENAME), db_members[0])
+        target.write_bytes(zf.read(chosen))
+        logger.info("Extracted %r → %s (%d bytes)", chosen, target, target.stat().st_size)
+
+
+# ------------------------------------------------------------------
+# Schema introspection (used by debug endpoint)
+# ------------------------------------------------------------------
+
+def get_schema_info() -> dict:
+    """Return a dict describing every table's DDL, column names, and row count.
+
+    Used by the admin ``/api/v1/tafsir/schema`` debug endpoint.
+    """
+    ensure_database()
+    conn = _open_db()
+    try:
+        tables = conn.execute(
+            "SELECT name, sql FROM sqlite_master "
+            "WHERE type='table' ORDER BY name"
+        ).fetchall()
+
+        result: dict = {"db_path": str(_db_path()), "tables": {}}
+        for tbl in tables:
+            name = tbl["name"]
+            cols = [
+                {"name": c["name"], "type": c["type"]}
+                for c in conn.execute(f"PRAGMA table_info([{name}])").fetchall()
+            ]
+            count = conn.execute(f"SELECT COUNT(*) FROM [{name}]").fetchone()[0]
+            result["tables"][name] = {
+                "ddl":     tbl["sql"],
+                "columns": cols,
+                "rows":    count,
+            }
+
+        # Also pull TafseerName so the caller sees the ID ↔ book mapping
+        tafseer_names = [
+            {"id": r["ID"], "name_ar": r["Name"], "name_en": r["NameE"]}
+            for r in conn.execute(
+                "SELECT ID, Name, NameE FROM TafseerName ORDER BY ID"
+            ).fetchall()
+        ]
+        result["tafseer_names"] = tafseer_names
+        return result
+    finally:
+        conn.close()
 
 
 # ------------------------------------------------------------------
 # Query helpers
 # ------------------------------------------------------------------
 
-def get_tafsir_for_ayah(surah: int, ayah: int) -> dict[str, dict]:
-    """Return tafsir texts for a specific ayah from both Ibn Kathir and Al-Tabari.
+def get_tafsir_for_ayah(surah: int, ayah: int) -> list[dict]:
+    """Return tafsir commentary for a specific ayah from Ibn Kathir and Al-Tabari.
 
-    Returns a dict keyed by TAFSIR_SOURCES stem::
+    Returns a list of dicts (one per source found), each with keys:
+        tafseer_id, name_en, name_ar, surah, ayah, reference, text
 
-        {
-          "tabary":  {"name_en": "Al-Tabari", "name_ar": "الطبري",  "text": "..."},
-          "katheer": {"name_en": "Ibn Kathir","name_ar": "ابن كثير","text": "..."},
-        }
-
-    Missing entries (DB absent or ayah not found) are omitted from the result.
+    Missing entries (ayah not in DB) are omitted from the result.
     """
-    result: dict[str, dict] = {}
-    for stem, meta in TAFSIR_SOURCES.items():
-        if not _db_path(stem).exists():
-            logger.warning("Tafseer DB missing: %s", _db_path(stem))
-            continue
-        try:
-            conn = _open(stem)
-            try:
-                row = conn.execute(
-                    "SELECT text FROM verses WHERE sura = ? AND ayah = ?",
-                    (surah, ayah),
-                ).fetchone()
-            finally:
-                conn.close()
+    ids = tuple(TAFSIR_SOURCES.keys())          # (1, 2)
+    placeholders = ",".join("?" * len(ids))
 
-            if row and row["text"]:
-                result[stem] = {**meta, "text": row["text"].strip()}
-        except sqlite3.OperationalError as exc:
-            logger.error("Query failed for %s (%d:%d): %s", stem, surah, ayah, exc)
+    conn = _open_db()
+    try:
+        rows = conn.execute(
+            f"SELECT tafseer, sura, ayah, nass "
+            f"FROM Tafseer "
+            f"WHERE tafseer IN ({placeholders}) AND sura = ? AND ayah = ? "
+            f"ORDER BY tafseer",
+            (*ids, surah, ayah),
+        ).fetchall()
+    finally:
+        conn.close()
 
+    result: list[dict] = []
+    for row in rows:
+        tid = row["tafseer"]
+        meta = TAFSIR_SOURCES.get(tid, {"name_en": f"Tafseer {tid}", "name_ar": ""})
+        nass = (row["nass"] or "").strip()
+        if nass:
+            result.append({
+                "tafseer_id": tid,
+                "name_en":   meta["name_en"],
+                "name_ar":   meta["name_ar"],
+                "surah":     row["sura"],
+                "ayah":      row["ayah"],
+                "reference": f"{row['sura']}:{row['ayah']}",
+                "text":      nass,
+            })
     return result
 
 
 def search_tafsir_text(query: str, limit: int = 10) -> list[dict]:
-    """Keyword search across both tafseer databases using SQLite LIKE.
+    """Full-text search over Ibn Kathir and Al-Tabari using SQLite LIKE.
 
-    Used as a fallback when the ChromaDB semantic index has not been built yet.
-    Returns a list of dicts with keys: stem, name_en, name_ar, surah, ayah,
-    reference, text.
+    Used as a fallback when the ChromaDB semantic index has not been built.
+    Returns a list of dicts with the same keys as ``get_tafsir_for_ayah()``.
     """
-    results: list[dict] = []
+    ids = tuple(TAFSIR_SOURCES.keys())
+    placeholders = ",".join("?" * len(ids))
     pattern = f"%{query}%"
 
-    for stem, meta in TAFSIR_SOURCES.items():
-        if not _db_path(stem).exists():
-            continue
-        try:
-            conn = _open(stem)
-            try:
-                rows = conn.execute(
-                    "SELECT sura, ayah, text FROM verses WHERE text LIKE ? LIMIT ?",
-                    (pattern, limit),
-                ).fetchall()
-            finally:
-                conn.close()
+    conn = _open_db()
+    try:
+        rows = conn.execute(
+            f"SELECT tafseer, sura, ayah, nass "
+            f"FROM Tafseer "
+            f"WHERE tafseer IN ({placeholders}) AND nass LIKE ? "
+            f"ORDER BY tafseer, sura, ayah "
+            f"LIMIT ?",
+            (*ids, pattern, limit),
+        ).fetchall()
+    finally:
+        conn.close()
 
-            for row in rows:
-                results.append({
-                    "stem":      stem,
-                    "name_en":   meta["name_en"],
-                    "name_ar":   meta["name_ar"],
-                    "surah":     row["sura"],
-                    "ayah":      row["ayah"],
-                    "reference": f"{row['sura']}:{row['ayah']}",
-                    "text":      (row["text"] or "").strip(),
-                })
-        except sqlite3.OperationalError as exc:
-            logger.error("LIKE search failed for %s: %s", stem, exc)
-
-    return results
+    result: list[dict] = []
+    for row in rows:
+        tid = row["tafseer"]
+        meta = TAFSIR_SOURCES.get(tid, {"name_en": f"Tafseer {tid}", "name_ar": ""})
+        nass = (row["nass"] or "").strip()
+        if nass:
+            result.append({
+                "tafseer_id": tid,
+                "name_en":   meta["name_en"],
+                "name_ar":   meta["name_ar"],
+                "surah":     row["sura"],
+                "ayah":      row["ayah"],
+                "reference": f"{row['sura']}:{row['ayah']}",
+                "text":      nass,
+            })
+    return result
 
 
 def iter_all_tafsir() -> Iterator[dict]:
-    """Yield every row from both tafseer databases in (sura, ayah) order.
+    """Yield every row for Ibn Kathir and Al-Tabari in (sura, ayah) order.
 
-    Yields dicts with keys: stem, name_en, name_ar, surah, ayah, reference, text.
-    Used by TafsirStore.build_collection() to embed content into ChromaDB.
+    Yields dicts with the same keys as ``get_tafsir_for_ayah()``.
+    Used by ``TafsirStore.build_collection()`` to embed content into ChromaDB.
     """
-    for stem, meta in TAFSIR_SOURCES.items():
-        if not _db_path(stem).exists():
-            logger.warning("Skipping missing DB during iteration: %s", _db_path(stem))
-            continue
-        conn = _open(stem)
-        try:
-            rows = conn.execute(
-                "SELECT sura, ayah, text FROM verses ORDER BY sura, ayah"
-            ).fetchall()
-        except sqlite3.OperationalError as exc:
-            logger.error("iter_all_tafsir failed for %s: %s", stem, exc)
-            conn.close()
-            continue
+    ids = tuple(TAFSIR_SOURCES.keys())
+    placeholders = ",".join("?" * len(ids))
 
+    conn = _open_db()
+    try:
+        rows = conn.execute(
+            f"SELECT tafseer, sura, ayah, nass "
+            f"FROM Tafseer "
+            f"WHERE tafseer IN ({placeholders}) "
+            f"ORDER BY tafseer, sura, ayah",
+            ids,
+        ).fetchall()
+    finally:
         conn.close()
-        for row in rows:
-            text = (row["text"] or "").strip()
-            if text:
-                yield {
-                    "stem":      stem,
-                    "name_en":   meta["name_en"],
-                    "name_ar":   meta["name_ar"],
-                    "surah":     row["sura"],
-                    "ayah":      row["ayah"],
-                    "reference": f"{row['sura']}:{row['ayah']}",
-                    "text":      text,
-                }
+
+    for row in rows:
+        tid = row["tafseer"]
+        meta = TAFSIR_SOURCES.get(tid, {"name_en": f"Tafseer {tid}", "name_ar": ""})
+        nass = (row["nass"] or "").strip()
+        if nass:
+            yield {
+                "tafseer_id": tid,
+                "name_en":   meta["name_en"],
+                "name_ar":   meta["name_ar"],
+                "surah":     row["sura"],
+                "ayah":      row["ayah"],
+                "reference": f"{row['sura']}:{row['ayah']}",
+                "text":      nass,
+            }
