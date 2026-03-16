@@ -7,14 +7,17 @@ Follows the same patterns as ``src/rag/pipeline.py`` and
   - ``build_collection()`` called from the admin endpoint only
 
 Collection: ``tafsir_knowledge``
-Metadata keys per document: source, source_ar, surah, ayah, reference
+Metadata keys per document: source, source_ar, tafseer_id, surah, ayah, reference
 
-Note: building the collection makes ~12 000 embedding API calls
-(6 236 verses × 2 books) — run the admin endpoint once and the results
-are persisted to ``data/chroma_db``.
+Ingestion scope: Ibn Kathir (ID=2) + Al-Tabari (ID=1) only = ~12 472 rows.
+Because each row can be tens of thousands of chars, the total chunk count
+is much higher. At EMBED_BATCH=100 with a 2-second inter-batch pause and a
+60-second back-off on HTTP 429, the ingestion runs safely within OpenAI's
+1M TPM rate limit.
 """
 
 import logging
+import time
 from pathlib import Path
 from typing import Any
 
@@ -33,6 +36,12 @@ COLLECTION_NAME = "tafsir_knowledge"
 # while preserving enough context for meaningful similarity search.
 _CHUNK_CHARS = 800
 _CHUNK_OVERLAP = 80
+
+# --- Rate-limit-safe ingestion tunables ---
+EMBED_BATCH = 100          # documents sent to OpenAI per embedding call
+BATCH_SLEEP_S = 2          # seconds to pause between every batch
+RATE_LIMIT_SLEEP_S = 60    # seconds to back off after an HTTP 429
+PROGRESS_LOG_EVERY = 500   # emit a progress line every N documents embedded
 
 
 # ------------------------------------------------------------------
@@ -104,60 +113,117 @@ class TafsirStore:
     # ------------------------------------------------------------------
 
     def build_collection(self) -> int:
-        """Embed all tafsir content into the ``tafsir_knowledge`` ChromaDB collection.
+        """Embed Ibn Kathir + Al-Tabari tafsir into the ``tafsir_knowledge`` collection.
 
-        Iterates both Ibn Kathir and Al-Tabari via ``iter_all_tafsir()``,
-        chunks long texts, and upserts in batches of 500 to respect the
-        OpenAI embedding rate limit.
+        Strategy
+        --------
+        1. Stream all rows from ``iter_all_tafsir()`` (IDs 1 + 2, ~12 472 rows),
+           split each into 800-char chunks, and collect them into a flat list.
+        2. Send chunks to OpenAI in small batches of ``EMBED_BATCH`` (100) so we
+           stay well below the 1M-token-per-minute rate limit.
+        3. Sleep ``BATCH_SLEEP_S`` (2 s) between every batch.
+        4. On HTTP 429 / RateLimitError, sleep ``RATE_LIMIT_SLEEP_S`` (60 s)
+           and retry the same batch once before re-raising.
+        5. Log a progress line every ``PROGRESS_LOG_EVERY`` (500) documents.
 
-        Returns the total number of document chunks embedded.
+        Returns the total number of chunks successfully embedded.
         """
+        # --- Build full chunk list up-front so we know the total for logging ---
         docs: list[Document] = []
         for row in iter_all_tafsir():
             for chunk in _split_text(row["text"]):
                 docs.append(Document(
                     page_content=chunk,
                     metadata={
-                        "source":      row["name_en"],
-                        "source_ar":   row["name_ar"],
-                        "tafseer_id":  row["tafseer_id"],
-                        "surah":       row["surah"],
-                        "ayah":        row["ayah"],
-                        "reference":   row["reference"],
+                        "source":     row["name_en"],
+                        "source_ar":  row["name_ar"],
+                        "tafseer_id": row["tafseer_id"],
+                        "surah":      row["surah"],
+                        "ayah":       row["ayah"],
+                        "reference":  row["reference"],
                     },
                 ))
 
         if not docs:
-            logger.warning("No tafsir documents found to embed — is the database downloaded?")
+            logger.warning(
+                "No tafsir documents found to embed — is tafaseer.db downloaded?"
+            )
             return 0
 
+        total = len(docs)
+        total_batches = (total + EMBED_BATCH - 1) // EMBED_BATCH
+        estimated_min = (total_batches * (BATCH_SLEEP_S + 1)) / 60
         logger.info(
-            "Embedding %d tafsir chunks into '%s' collection …",
-            len(docs), COLLECTION_NAME,
+            "Tafsir ingestion starting: %d chunks across %d batches of %d "
+            "(~%.0f min estimated, excluding any rate-limit back-offs).",
+            total, total_batches, EMBED_BATCH, estimated_min,
         )
 
         persist_dir = str(Path(settings.chroma_persist_dir))
-        BATCH = 500
         store: Chroma | None = None
-        for i in range(0, len(docs), BATCH):
-            batch = docs[i : i + BATCH]
-            if store is None:
-                store = Chroma.from_documents(
-                    documents=batch,
-                    embedding=self._embeddings,
-                    collection_name=COLLECTION_NAME,
-                    persist_directory=persist_dir,
+        embedded = 0
+
+        for i in range(0, total, EMBED_BATCH):
+            batch = docs[i : i + EMBED_BATCH]
+            batch_num = i // EMBED_BATCH + 1
+
+            # --- Embed with one retry on rate-limit ---
+            for attempt in range(1, 3):   # attempts 1 and 2
+                try:
+                    if store is None:
+                        store = Chroma.from_documents(
+                            documents=batch,
+                            embedding=self._embeddings,
+                            collection_name=COLLECTION_NAME,
+                            persist_directory=persist_dir,
+                        )
+                    else:
+                        store.add_documents(batch)
+                    break  # success
+
+                except Exception as exc:
+                    err = str(exc).lower()
+                    is_rate_limit = (
+                        "rate" in err or "429" in err or "ratelimit" in err
+                        or "too many" in err
+                    )
+                    if attempt == 1 and is_rate_limit:
+                        logger.warning(
+                            "Rate limit hit on batch %d/%d — sleeping %d s then retrying …",
+                            batch_num, total_batches, RATE_LIMIT_SLEEP_S,
+                        )
+                        time.sleep(RATE_LIMIT_SLEEP_S)
+                        # loop continues to attempt 2
+                    else:
+                        logger.exception(
+                            "Embedding failed on batch %d/%d (attempt %d): %s",
+                            batch_num, total_batches, attempt, exc,
+                        )
+                        raise
+
+            embedded += len(batch)
+
+            # --- Progress log every PROGRESS_LOG_EVERY documents ---
+            prev_milestone = (embedded - len(batch)) // PROGRESS_LOG_EVERY
+            curr_milestone = embedded // PROGRESS_LOG_EVERY
+            if curr_milestone > prev_milestone or embedded >= total:
+                logger.info(
+                    "Tafsir ingestion progress: %d / %d chunks (%.1f%%) — "
+                    "batch %d / %d",
+                    embedded, total, embedded / total * 100,
+                    batch_num, total_batches,
                 )
-            else:
-                store.add_documents(batch)
-            logger.info(
-                "  … embedded %d / %d tafsir chunks",
-                min(i + BATCH, len(docs)), len(docs),
-            )
+
+            # --- Pause between batches (skip after the last one) ---
+            if i + EMBED_BATCH < total:
+                time.sleep(BATCH_SLEEP_S)
 
         self._store = store
-        logger.info("Tafsir collection built: %d chunks.", len(docs))
-        return len(docs)
+        logger.info(
+            "Tafsir collection complete: %d / %d chunks embedded into '%s'.",
+            embedded, total, COLLECTION_NAME,
+        )
+        return embedded
 
     # ------------------------------------------------------------------
     # Retrieval

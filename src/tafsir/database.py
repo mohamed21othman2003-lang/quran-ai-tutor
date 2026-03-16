@@ -45,7 +45,9 @@ ZIP_URL = (
 
 DB_FILENAME = "tafaseer.db"   # sole file inside the zip
 
-# Tafseer IDs that the public API surfaces (verified from TafseerName table)
+# Tafseer IDs exposed by the public API (verified from TafseerName table).
+# Restricting to IDs 1 and 2 limits ingest to ~12 472 rows instead of the
+# full 49 888 (8 books), keeping embedding cost and time manageable.
 TAFSIR_SOURCES: dict[int, dict[str, str]] = {
     1: {"name_en": "Al-Tabari",  "name_ar": "الطبري"},
     2: {"name_en": "Ibn Kathir", "name_ar": "ابن كثير"},
