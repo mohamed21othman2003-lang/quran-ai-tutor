@@ -1809,6 +1809,20 @@ const API = window.location.origin;
 let authToken   = null;
 let currentUser = null; // { user_id, username }
 
+(function restoreSession() {
+  const t = localStorage.getItem('quran_token');
+  const u = localStorage.getItem('quran_user');
+  if (t && u) {
+    try {
+      authToken   = t;
+      currentUser = JSON.parse(u);
+    } catch(e) {
+      localStorage.removeItem('quran_token');
+      localStorage.removeItem('quran_user');
+    }
+  }
+})();
+
 // UI state
 let lang         = 'en';
 let quizAnswered = false;
@@ -2241,6 +2255,8 @@ async function submitRegister(e) {
 function onAuthSuccess(data) {
   authToken   = data.token;
   currentUser = { user_id: data.user_id, username: data.username };
+  localStorage.setItem('quran_token', data.token);
+  localStorage.setItem('quran_user', JSON.stringify({ user_id: data.user_id, username: data.username }));
 
   // Show user chip in header
   const initials = data.username.slice(0, 2).toUpperCase();
@@ -2256,6 +2272,8 @@ function onAuthSuccess(data) {
 function logout() {
   authToken   = null;
   currentUser = null;
+  localStorage.removeItem('quran_token');
+  localStorage.removeItem('quran_user');
   document.getElementById('user-chip').classList.remove('visible');
   document.getElementById('auth-screen').classList.remove('hidden');
   // Reset forms
