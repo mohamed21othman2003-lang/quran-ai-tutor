@@ -1137,6 +1137,170 @@
       text-align: center;
       margin-top: 4px;
     }
+
+    /* ══════════════════════════════════════════════════════════
+       MEMORIZATION TAB (حفظ)
+    ══════════════════════════════════════════════════════════ */
+
+    /* Identified ayah header banner */
+    .mem-ayah-banner {
+      background: linear-gradient(135deg, var(--green-900), var(--green-700));
+      border-radius: var(--radius);
+      padding: 18px 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      color: #fff;
+    }
+    .mem-ayah-ref {
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: .04em;
+    }
+    .mem-ayah-surah {
+      font-family: var(--font-ar);
+      font-size: 1.1rem;
+      direction: rtl;
+      opacity: .9;
+    }
+    .mem-score-pill {
+      background: rgba(255,255,255,.18);
+      border-radius: 30px;
+      padding: 8px 20px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .mem-score-num  { font-size: 1.5rem; font-weight: 800; line-height: 1; }
+    .mem-score-lbl  { font-size: .7rem; opacity: .8; margin-top: 2px; }
+
+    /* Canonical text display */
+    .mem-canonical-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      box-shadow: var(--shadow);
+    }
+    .mem-box-label {
+      font-size: .72rem;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .mem-canonical-text {
+      font-family: var(--font-ar);
+      font-size: 1.15rem;
+      line-height: 2;
+      direction: rtl;
+      text-align: right;
+      color: var(--text);
+    }
+    .mem-canonical-text .word-ok     { color: var(--green-700); }
+    .mem-canonical-text .word-miss   { color: var(--red); background: #fff0f0;
+                                       border-radius: 4px; padding: 0 3px; }
+
+    /* Missing / wrong word lists */
+    .mem-errors-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    @media (max-width: 560px) { .mem-errors-row { grid-template-columns: 1fr; } }
+
+    .mem-error-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      box-shadow: 0 1px 6px rgba(6,78,59,.06);
+    }
+    .mem-error-box.missing { border-top: 3px solid var(--red); }
+    .mem-error-box.wrong   { border-top: 3px solid #f97316; }
+
+    .mem-word-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
+    .mem-chip {
+      font-family: var(--font-ar);
+      font-size: .92rem;
+      direction: rtl;
+      padding: 4px 12px;
+      border-radius: 20px;
+    }
+    .mem-chip.miss { background: #fff0f0; color: var(--red); border: 1px solid #fca5a5; }
+    .mem-chip.wrong-exp { background: #fff7ed; color: #92400e; border: 1px solid #fdba74; }
+
+    /* Wrong word: shows "expected ← got" */
+    .mem-chip-pair {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-family: var(--font-ar);
+      font-size: .88rem;
+      direction: rtl;
+      background: #fff7ed;
+      border: 1px solid #fdba74;
+      border-radius: 20px;
+      padding: 4px 10px;
+      color: #92400e;
+    }
+    .mem-chip-pair .arr { font-family: sans-serif; font-size: .75rem; opacity: .6; }
+
+    /* Tips box */
+    .mem-tips-box {
+      background: #fffbeb;
+      border: 1px solid #fcd34d;
+      border-radius: var(--radius);
+      padding: 16px 18px;
+    }
+    .mem-tips-box .mem-box-label { color: #92400e; }
+    .mem-tip-item {
+      display: flex;
+      gap: 10px;
+      padding: 7px 0;
+      border-bottom: 1px solid #fde68a;
+      font-size: .9rem;
+      color: #78350f;
+      line-height: 1.5;
+      font-family: var(--font-ar);
+      direction: rtl;
+      text-align: right;
+    }
+    .mem-tip-item:last-child { border-bottom: none; }
+    .mem-tip-num {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: #f59e0b;
+      color: #fff;
+      font-size: .72rem;
+      font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; margin-top: 1px;
+      font-family: var(--font-en);
+    }
+
+    /* "Not identified" banner */
+    .mem-not-found {
+      background: #fff5f5;
+      border: 2px solid #fca5a5;
+      border-radius: var(--radius);
+      padding: 24px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    .mem-not-found .mem-nf-icon { font-size: 2.5rem; }
+    .mem-not-found .mem-nf-ar {
+      font-family: var(--font-ar);
+      font-size: 1.05rem;
+      color: #991b1b;
+      direction: rtl;
+    }
+    .mem-not-found .mem-nf-en { font-size: .88rem; color: #b91c1c; }
   </style>
 </head>
 <body>
@@ -1245,6 +1409,9 @@
     </button>
     <button class="tab-btn" onclick="switchTab('voice')" id="tab-voice">
       <span class="icon">🎙️</span><span class="tab-label" id="lbl-voice">Voice</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('memorization')" id="tab-memorization">
+      <span class="icon">🕌</span><span class="tab-label" id="lbl-memorization">Hifz</span>
     </button>
     <button class="tab-btn" onclick="switchTab('tafsir')" id="tab-tafsir">
       <span class="icon">📗</span><span class="tab-label" id="lbl-tafsir">Tafsir</span>
@@ -1427,6 +1594,90 @@
       </div>
     </div>
   </div>
+
+  <!-- ── Memorization Panel (حفظ) ── -->
+  <div class="panel" id="panel-memorization">
+    <div class="panel-header">
+      <div>
+        <h2 id="mem-heading">Memorization Check</h2>
+        <p id="mem-sub">Recite any ayah — the AI identifies it and checks your accuracy</p>
+      </div>
+    </div>
+
+    <!-- Recording card (same pattern as Voice tab) -->
+    <div class="voice-card">
+      <p class="field-hint" style="text-align:center" id="mem-instruction">
+        Tap the mic, recite any ayah you have memorized, then stop.
+      </p>
+
+      <div class="voice-controls">
+        <button class="record-btn" id="mem-record-btn" onclick="startMemRecording()">
+          <span class="mic-icon">🎙️</span>
+          <span class="record-ring"></span>
+        </button>
+        <button class="stop-btn hidden" id="mem-stop-btn" onclick="stopMemRecording()">
+          <span>⏹</span>
+        </button>
+      </div>
+
+      <p class="voice-status" id="mem-status-lbl"></p>
+
+      <audio id="mem-playback" controls class="hidden"
+        style="width:100%;margin-top:8px;border-radius:8px"></audio>
+    </div>
+
+    <!-- Result area — hidden until a response arrives -->
+    <div class="hidden" id="mem-result">
+
+      <!-- Identified: ayah banner + score -->
+      <div id="mem-identified-section">
+
+        <!-- Ayah reference + score pill -->
+        <div class="mem-ayah-banner" style="margin-bottom:14px" id="mem-banner">
+          <div>
+            <div class="mem-ayah-ref" id="mem-ref-lbl"></div>
+            <div class="mem-ayah-surah" id="mem-surah-lbl"></div>
+          </div>
+          <div class="mem-score-pill">
+            <div class="mem-score-num" id="mem-score-val">—</div>
+            <div class="mem-score-lbl" id="mem-score-tag">حفظ</div>
+          </div>
+        </div>
+
+        <!-- Canonical text with highlighted missing words -->
+        <div class="mem-canonical-box" style="margin-bottom:14px">
+          <div class="mem-box-label" id="mem-canonical-lbl">CANONICAL TEXT</div>
+          <div class="mem-canonical-text" dir="rtl" id="mem-canonical-text"></div>
+        </div>
+
+        <!-- Missing + wrong words side by side -->
+        <div class="mem-errors-row" id="mem-errors-row" style="margin-bottom:14px">
+          <div class="mem-error-box missing">
+            <div class="mem-box-label" id="mem-missing-lbl">MISSING WORDS</div>
+            <div class="mem-word-chips" id="mem-missing-chips"></div>
+          </div>
+          <div class="mem-error-box wrong">
+            <div class="mem-box-label" id="mem-wrong-lbl">WRONG WORDS</div>
+            <div class="mem-word-chips" id="mem-wrong-chips"></div>
+          </div>
+        </div>
+
+        <!-- Tips -->
+        <div class="mem-tips-box" id="mem-tips-box">
+          <div class="mem-box-label" id="mem-tips-lbl">TIPS</div>
+          <div id="mem-tips-list"></div>
+        </div>
+      </div>
+
+      <!-- Not identified message -->
+      <div class="mem-not-found hidden" id="mem-not-found">
+        <div class="mem-nf-icon">🔍</div>
+        <div class="mem-nf-ar" id="mem-nf-ar">لم يتم التعرف على الآية، حاول مرة أخرى</div>
+        <div class="mem-nf-en" id="mem-nf-en">Could not identify the ayah, please try again</div>
+      </div>
+
+    </div><!-- /mem-result -->
+  </div><!-- /panel-memorization -->
 
   <!-- ── Tafsir Panel ── -->
   <div class="panel" id="panel-tafsir">
@@ -1644,6 +1895,23 @@ const i18n = {
     surahLabel: 'Surah', verseLabel: 'Verse',
     canonicalOutLbl: 'Canonical (Quran DB)',
     ayahNotInQuran: 'Text not found in the Quran verse database. Please enter a valid ayah.',
+    memorization: 'Hifz',
+    memHeading: 'Memorization Check',
+    memSub: 'Recite any ayah — the AI identifies it and checks your accuracy',
+    memInstruction: 'Tap the mic, recite any ayah you have memorized, then stop.',
+    memIdle: 'Tap the mic to start recording',
+    memRecording: '🔴 Recording… press Stop when done',
+    memProcessing: '⏳ Identifying ayah…',
+    memNoMic: 'Microphone access denied. Please allow microphone in browser settings.',
+    memError: 'Could not process audio. Please try again.',
+    memScoreLbl: 'Accuracy',
+    memCanonicalLbl: 'CANONICAL TEXT',
+    memMissingLbl: 'MISSING WORDS',
+    memWrongLbl: 'WRONG WORDS',
+    memTipsLbl: 'TIPS',
+    memNfAr: 'لم يتم التعرف على الآية، حاول مرة أخرى',
+    memNfEn: 'Could not identify the ayah, please try again',
+    memNoneFound: 'None ✓',
     tafsir: 'Tafsir',
     tafsirHeading: 'Tafsir Search',
     tafsirSub: 'Commentary from Ibn Kathir & Al-Tabari',
@@ -1741,6 +2009,23 @@ const i18n = {
     surahLabel: 'سورة', verseLabel: 'آية',
     canonicalOutLbl: 'النص القرآني الأصلي',
     ayahNotInQuran: 'لم يُعثر على النص في قاعدة بيانات الآيات. يُرجى إدخال آية قرآنية صحيحة.',
+    memorization: 'حفظ',
+    memHeading: 'اختبار الحفظ',
+    memSub: 'اتلُ أي آية حفظتها — سيتعرف عليها النظام ويقيّم دقة حفظك',
+    memInstruction: 'انقر على الميكروفون، اتلُ آية من حفظك، ثم أوقف التسجيل.',
+    memIdle: 'انقر على الميكروفون لبدء التسجيل',
+    memRecording: '🔴 جارٍ التسجيل… انقر إيقاف عند الانتهاء',
+    memProcessing: '⏳ جارٍ التعرف على الآية…',
+    memNoMic: 'لم يُسمح بالوصول إلى الميكروفون. يُرجى تفعيله من إعدادات المتصفح.',
+    memError: 'تعذّرت معالجة الصوت. يرجى المحاولة مجدداً.',
+    memScoreLbl: 'دقة الحفظ',
+    memCanonicalLbl: 'النص القرآني الأصلي',
+    memMissingLbl: 'كلمات ناقصة',
+    memWrongLbl: 'كلمات خاطئة',
+    memTipsLbl: 'نصائح التحسين',
+    memNfAr: 'لم يتم التعرف على الآية، حاول مرة أخرى',
+    memNfEn: 'Could not identify the ayah, please try again',
+    memNoneFound: 'لا شيء ✓',
     tafsir: 'تفسير',
     tafsirHeading: 'البحث في التفسير',
     tafsirSub: 'تفسير ابن كثير والطبري',
@@ -1839,6 +2124,24 @@ function applyI18n() {
   const statusEl = $('voice-status-lbl');
   if (statusEl && !statusEl.classList.contains('recording') && !statusEl.classList.contains('processing')) {
     statusEl.textContent = t('voiceIdle');
+  }
+
+  // Memorization tab
+  $('lbl-memorization').textContent      = t('memorization');
+  $('mem-heading').textContent           = t('memHeading');
+  $('mem-sub').textContent               = t('memSub');
+  $('mem-instruction').textContent       = t('memInstruction');
+  $('mem-score-tag').textContent         = t('memScoreLbl');
+  $('mem-canonical-lbl').textContent     = t('memCanonicalLbl');
+  $('mem-missing-lbl').textContent       = t('memMissingLbl');
+  $('mem-wrong-lbl').textContent         = t('memWrongLbl');
+  $('mem-tips-lbl').textContent          = t('memTipsLbl');
+  $('mem-nf-ar').textContent             = t('memNfAr');
+  $('mem-nf-en').textContent             = t('memNfEn');
+  // Reset status if idle
+  const memStatusEl = $('mem-status-lbl');
+  if (memStatusEl && !memStatusEl.classList.contains('recording') && !memStatusEl.classList.contains('processing')) {
+    memStatusEl.textContent = t('memIdle');
   }
 
   // Tafsir tab
@@ -2718,6 +3021,176 @@ async function runReport() {
     btn.disabled = false;
     document.getElementById('report-btn-lbl').textContent = t('reportBtn');
   }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Memorization — record → POST /api/v1/voice/memorization
+═══════════════════════════════════════════════════════════ */
+let _memRecorder   = null;
+let _memChunks     = [];
+let _memMicStream  = null;
+
+function setMemStatus(msgKey, cls = '') {
+  const el = document.getElementById('mem-status-lbl');
+  el.textContent = t(msgKey);
+  el.className = 'voice-status' + (cls ? ' ' + cls : '');
+}
+
+async function startMemRecording() {
+  document.getElementById('mem-result').classList.add('hidden');
+  document.getElementById('mem-playback').classList.add('hidden');
+  _memChunks = [];
+
+  try {
+    _memMicStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch {
+    setMemStatus('memNoMic');
+    return;
+  }
+
+  const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', '']
+    .find(m => m === '' || MediaRecorder.isTypeSupported(m));
+
+  _memRecorder = new MediaRecorder(_memMicStream, mimeType ? { mimeType } : {});
+  _memRecorder.ondataavailable = e => { if (e.data.size > 0) _memChunks.push(e.data); };
+  _memRecorder.onstop = _onMemRecordingStop;
+  _memRecorder.start(250);
+
+  document.getElementById('mem-record-btn').classList.add('recording', 'hidden');
+  document.getElementById('mem-stop-btn').classList.remove('hidden');
+  setMemStatus('memRecording', 'recording');
+}
+
+function stopMemRecording() {
+  if (_memRecorder && _memRecorder.state !== 'inactive') _memRecorder.stop();
+  _memMicStream?.getTracks().forEach(t => t.stop());
+  document.getElementById('mem-record-btn').classList.remove('recording', 'hidden');
+  document.getElementById('mem-stop-btn').classList.add('hidden');
+  setMemStatus('memProcessing', 'processing');
+}
+
+async function _onMemRecordingStop() {
+  const blob = new Blob(_memChunks, { type: _memRecorder.mimeType || 'audio/webm' });
+
+  // Show playback
+  const player = document.getElementById('mem-playback');
+  player.src = URL.createObjectURL(blob);
+  player.classList.remove('hidden');
+
+  const form = new FormData();
+  form.append('audio', blob, 'recording.webm');
+
+  try {
+    const res = await fetch(API + '/api/v1/voice/memorization', { method: 'POST', body: form });
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({ detail: res.statusText }));
+      const msg = (typeof errBody.detail === 'string') ? errBody.detail : t('memError');
+      setMemStatus('memIdle');
+      showToast(msg);
+      return;
+    }
+    const data = await res.json();
+    renderMemResult(data);
+  } catch (err) {
+    setMemStatus('memIdle');
+    showToast(err.message || t('memError'));
+  }
+}
+
+function renderMemResult(data) {
+  setMemStatus('memIdle');
+
+  const resultEl       = document.getElementById('mem-result');
+  const identifiedSec  = document.getElementById('mem-identified-section');
+  const notFoundEl     = document.getElementById('mem-not-found');
+
+  resultEl.classList.remove('hidden');
+
+  if (!data.identified) {
+    identifiedSec.classList.add('hidden');
+    notFoundEl.classList.remove('hidden');
+    document.getElementById('mem-nf-ar').textContent = data.message_ar || t('memNfAr');
+    document.getElementById('mem-nf-en').textContent = data.message_en || t('memNfEn');
+    resultEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    return;
+  }
+
+  notFoundEl.classList.add('hidden');
+  identifiedSec.classList.remove('hidden');
+
+  // Reference banner
+  const pct = Math.round(data.memorization_score * 100);
+  document.getElementById('mem-ref-lbl').textContent   = data.reference || '';
+  document.getElementById('mem-surah-lbl').textContent = data.surah_name || '';
+  document.getElementById('mem-score-val').textContent = pct + '%';
+
+  // Colour-code the score pill background
+  const banner = document.getElementById('mem-banner');
+  banner.style.background = pct >= 85
+    ? 'linear-gradient(135deg,var(--green-900),var(--green-700))'
+    : pct >= 60
+      ? 'linear-gradient(135deg,#92400e,#d97706)'
+      : 'linear-gradient(135deg,#7f1d1d,#dc2626)';
+
+  // Canonical text: highlight missing words in red
+  const missingSet = new Set(
+    (data.missing_words || []).map(w => w.trim().toLowerCase())
+  );
+  const canonEl = document.getElementById('mem-canonical-text');
+  canonEl.innerHTML = '';
+  (data.canonical_text || '').split(/\s+/).forEach((word, i) => {
+    const span = document.createElement('span');
+    // Strip diacritics for comparison only
+    const bare = word.replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E4\u06E7\u06E8\u06EA-\u06ED]/g, '').toLowerCase();
+    span.textContent = (i > 0 ? ' ' : '') + word;
+    if (missingSet.has(bare) || missingSet.has(word.toLowerCase())) {
+      span.className = 'word-miss';
+    } else {
+      span.className = 'word-ok';
+    }
+    canonEl.appendChild(span);
+  });
+
+  // Missing words chips
+  const missingChips = document.getElementById('mem-missing-chips');
+  missingChips.innerHTML = '';
+  if (data.missing_words && data.missing_words.length) {
+    data.missing_words.forEach(w => {
+      const chip = document.createElement('span');
+      chip.className = 'mem-chip miss';
+      chip.textContent = w;
+      missingChips.appendChild(chip);
+    });
+  } else {
+    missingChips.innerHTML = `<span style="font-size:.82rem;color:var(--text-muted)">${t('memNoneFound')}</span>`;
+  }
+
+  // Wrong words chips (format: "expected←got")
+  const wrongChips = document.getElementById('mem-wrong-chips');
+  wrongChips.innerHTML = '';
+  if (data.wrong_words && data.wrong_words.length) {
+    data.wrong_words.forEach(pair => {
+      const [exp, got] = pair.split('←');
+      const chip = document.createElement('span');
+      chip.className = 'mem-chip-pair';
+      chip.innerHTML = `<span>${exp || ''}</span><span class="arr">←</span><span style="color:#ef4444">${got || ''}</span>`;
+      wrongChips.appendChild(chip);
+    });
+  } else {
+    wrongChips.innerHTML = `<span style="font-size:.82rem;color:var(--text-muted)">${t('memNoneFound')}</span>`;
+  }
+
+  // Tips
+  const tipsList = document.getElementById('mem-tips-list');
+  tipsList.innerHTML = '';
+  (data.tips || []).forEach((tip, i) => {
+    const row = document.createElement('div');
+    row.className = 'mem-tip-item';
+    row.innerHTML = `<span class="mem-tip-num">${i + 1}</span><span>${tip}</span>`;
+    tipsList.appendChild(row);
+  });
+
+  resultEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 /* ═══════════════════════════════════════════════════════════

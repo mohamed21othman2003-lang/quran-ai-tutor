@@ -84,6 +84,31 @@ class VoiceCheckResponse(BaseModel):
     mismatch_detail: str            # explanation when quran_mismatch is True
 
 
+class MemorizationResponse(BaseModel):
+    """Response model for POST /memorization.
+
+    When ``identified=True`` the ayah was recognised and a full word-level
+    memorization check is included.  When ``identified=False`` only the
+    message fields are populated.
+    """
+
+    identified: bool
+
+    # Populated only when identified=True
+    reference: str = ""            # e.g. "2:255"
+    surah_name: str = ""           # Arabic surah name
+    canonical_text: str = ""       # exact Quran text from DB
+    transcribed_text: str = ""     # raw ASR output
+    memorization_score: float = 0.0   # 0.0 – 1.0 word-level similarity
+    missing_words: list[str] = []  # words present in canonical but absent in recitation
+    wrong_words: list[str] = []    # substituted words, format "expected←got"
+    tips: list[str] = []           # Arabic improvement tips (rule-based)
+
+    # Populated only when identified=False
+    message_ar: str = ""
+    message_en: str = ""
+
+
 # ------------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------------
@@ -362,6 +387,181 @@ async def voice_check(
         is_correct=score >= 0.85,
         errors=errors,
         **quran_info,
+    )
+
+
+# ------------------------------------------------------------------
+# Memorization Check
+# ------------------------------------------------------------------
+
+def _generate_memorization_tips(
+    score: float,
+    missing_words: list[str],
+    wrong_words: list[str],
+    reference: str,
+) -> list[str]:
+    """Return 2–4 Arabic memorization improvement tips based on error analysis.
+
+    Rule-based (no LLM call) so it is fast, free, and always available.
+    """
+    tips: list[str] = []
+
+    if score >= 0.9:
+        tips.append("أداء رائع! استمر في مراجعة الآية يومياً للحفاظ على حفظك.")
+    elif score >= 0.7:
+        tips.append(f"حفظ جيد! ركّز على المواضع التي أخطأت فيها وراجعها من المصحف.")
+    else:
+        tips.append(f"راجع الآية {reference} من المصحف عدة مرات قبل إعادة التسجيل.")
+
+    if missing_words:
+        sample = "، ".join(missing_words[:5])
+        tips.append(f"الكلمات الناقصة التي تحتاج إلى مراجعة: {sample}.")
+
+    if wrong_words:
+        tips.append("انتبه لدقة نطق الكلمات وتأكد من مطابقتها للنص القرآني الصحيح.")
+
+    if score < 0.5:
+        tips.append("اقرأ الآية من المصحف عشر مرات ثم احفظها كلمةً بكلمة.")
+    elif score < 0.8:
+        tips.append("قسّم الآية إلى أجزاء صغيرة واحفظ كل جزء منفرداً قبل ربطها معاً.")
+
+    return tips[:4]  # cap at 4 tips
+
+
+# Identification threshold: cosine distance ≤ this value is considered a match.
+# Mirrors _MATCH_DISTANCE_THRESHOLD in QuranVerifier but kept local so the
+# endpoint can apply a slightly more generous cutoff for fragmented recitations.
+_MEMORIZATION_ID_THRESHOLD = 0.70
+
+
+@router.post(
+    "/memorization",
+    response_model=MemorizationResponse,
+    summary="Check Quran memorization — identify ayah and score word accuracy",
+)
+async def memorization_check(
+    audio: UploadFile = File(..., description="Audio file (WAV, MP3, FLAC, OGG, WebM)"),
+) -> MemorizationResponse:
+    """Identify which ayah is being recited and measure memorization accuracy.
+
+    Workflow:
+    1. Transcribe the audio with the Quranic Whisper ASR model.
+    2. Use ``QuranVerifier.find_closest_ayah()`` to find the closest canonical
+       ayah (cosine distance ≤ 0.70 is accepted).
+    3. If identified: compare word-by-word against the canonical text and
+       return the memorization score, missing/wrong words, and Arabic tips.
+    4. If not identified: return ``identified=False`` with bilingual guidance.
+    """
+    # --- Validate upload size ---
+    file_bytes = await audio.read()
+    if not file_bytes:
+        raise HTTPException(status_code=400, detail="Audio file is empty.")
+    if len(file_bytes) > 25 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Audio file exceeds 25 MB limit.")
+
+    # --- Decode audio ---
+    try:
+        audio_array = _load_audio(file_bytes, filename=audio.filename or "audio.webm")
+    except Exception as exc:
+        logger.exception("Audio decode failed in /memorization")
+        raise HTTPException(
+            status_code=422,
+            detail=f"Could not decode audio file: {exc}",
+        ) from exc
+
+    # --- Reject too-short or silent audio ---
+    MIN_DURATION_S = 0.5
+    MIN_RMS = 1e-4
+    if len(audio_array) < int(MIN_DURATION_S * 16000):
+        raise HTTPException(status_code=422, detail="Audio is too short (minimum 0.5 s).")
+    rms = float(np.sqrt(np.mean(audio_array ** 2)))
+    if rms < MIN_RMS:
+        raise HTTPException(
+            status_code=422,
+            detail="No speech detected in the audio. Please record your recitation and try again.",
+        )
+
+    # --- Transcribe ---
+    try:
+        asr = _get_pipeline()
+        result = asr({"raw": audio_array, "sampling_rate": 16000})
+        transcribed = result["text"].strip()
+    except IndexError as exc:
+        logger.warning("ASR IndexError in /memorization — likely silent audio: %s", exc)
+        raise HTTPException(
+            status_code=422,
+            detail="No speech detected. Please record your recitation and try again.",
+        ) from exc
+    except Exception as exc:
+        logger.exception("ASR inference failed in /memorization")
+        raise HTTPException(status_code=500, detail=f"Transcription failed: {exc}") from exc
+
+    # --- Identify ayah ---
+    verifier = _get_verifier()
+    if not verifier.is_populated():
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "The Quran verse index is not available. "
+                "Run POST /api/v1/admin/ingest-quran to build it."
+            ),
+        )
+
+    # find_closest_ayah uses _MATCH_DISTANCE_THRESHOLD = 0.65; we allow 0.70
+    # here by doing the lookup ourselves with a looser threshold.
+    try:
+        results = verifier._get_store().similarity_search_with_score(transcribed, k=1)
+    except Exception as exc:
+        logger.exception("Similarity search failed in /memorization")
+        raise HTTPException(status_code=500, detail=f"Search error: {exc}") from exc
+
+    if not results or results[0][1] > _MEMORIZATION_ID_THRESHOLD:
+        logger.debug(
+            "Memorization: ayah not identified (distance=%.3f, threshold=%.2f)",
+            results[0][1] if results else -1,
+            _MEMORIZATION_ID_THRESHOLD,
+        )
+        return MemorizationResponse(
+            identified=False,
+            message_ar="لم يتم التعرف على الآية، حاول مرة أخرى",
+            message_en="Could not identify the ayah, please try again",
+        )
+
+    doc, distance = results[0]
+    canonical_text = doc.page_content
+    reference      = doc.metadata.get("reference", "")
+    surah_name     = doc.metadata.get("surah_name", "")
+
+    # --- Word-level comparison ---
+    memorization_score, errors = _compare(transcribed, canonical_text)
+
+    missing_words: list[str] = [
+        e.expected for e in errors if e.type == "missing_word"
+    ]
+    # Format substitutions as "expected←got" so the frontend can split on ←
+    wrong_words: list[str] = [
+        f"{e.expected}←{e.got}" for e in errors if e.type == "substitution"
+    ]
+
+    tips = _generate_memorization_tips(
+        memorization_score, missing_words, wrong_words, reference
+    )
+
+    logger.info(
+        "Memorization check: ref=%s score=%.2f missing=%d wrong=%d distance=%.3f",
+        reference, memorization_score, len(missing_words), len(wrong_words), distance,
+    )
+
+    return MemorizationResponse(
+        identified=True,
+        reference=reference,
+        surah_name=surah_name,
+        canonical_text=canonical_text,
+        transcribed_text=transcribed,
+        memorization_score=round(memorization_score, 3),
+        missing_words=missing_words,
+        wrong_words=wrong_words,
+        tips=tips,
     )
 
 
