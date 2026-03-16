@@ -192,9 +192,9 @@ def _load_audio(file_bytes: bytes, filename: str = "audio") -> np.ndarray:
     magic = file_bytes[:4]
     needs_convert = (
         any(file_bytes.startswith(sig) for sig in _NEEDS_FFMPEG)
-        or magic[4:8] == b"ftyp"           # MP4/M4A
+        or file_bytes[4:8] == b"ftyp"      # MP4/M4A
         or file_bytes[:4] == b"OggS"       # OGG
-        or filename.lower().endswith((".webm", ".mp3", ".m4a", ".ogg", ".opus"))
+        or filename.lower().endswith((".webm", ".mp3", ".m4a", ".mp4", ".ogg", ".opus"))
     )
 
     if needs_convert:
