@@ -40,11 +40,16 @@ class RAGPipeline:
         if not knowledge_path.exists():
             raise FileNotFoundError(f"Knowledge directory not found: {knowledge_path}")
 
+        # quran/ and quran_full.json belong to the Quran verses collection, not
+        # the Tajweed knowledge base — exclude them to avoid polluting tajweed_knowledge.
+        _EXCLUDE = ["quran/**", "quran_full.json"]
+
         docs: List[Document] = []
         for pattern in ("**/*.md", "**/*.txt"):
             loader = DirectoryLoader(
                 str(knowledge_path),
                 glob=pattern,
+                exclude=_EXCLUDE,
                 loader_cls=TextLoader,
                 loader_kwargs={"encoding": "utf-8"},
                 show_progress=True,
