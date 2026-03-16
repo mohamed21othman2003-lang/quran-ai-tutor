@@ -11,7 +11,8 @@ POST /api/v1/progress              — Save a learning event (auth required)
 GET  /api/v1/progress/{uid}        — Get user history + weak rules (auth required)
 POST /api/v1/admin/ingest          — Re-ingest knowledge base into ChromaDB (admin key required)
 POST /api/v1/admin/ingest-quran    — Ingest full Quran into quran_verses collection
-POST /api/v1/admin/ingest-tafsir   — Download tafseer DBs + build ChromaDB semantic index
+POST /api/v1/admin/ingest-tafsir          — Download tafaseer.db (SQLite only, no embedding)
+POST /api/v1/admin/ingest-tafsir-semantic — Build ChromaDB semantic index (opt-in, slow)
 POST /api/v1/voice/check           — Transcribe recitation + compare with expected ayah
 POST /api/v1/tafsir/search         — Search Ibn Kathir & Al-Tabari commentary
 POST /api/v1/tafsir/ask            — AI-synthesised tafsir Q&A via GPT-4o
@@ -295,22 +296,71 @@ async def ingest_quran(x_admin_key: str = Header(..., alias="X-Admin-Key")) -> A
 
 class TafsirIngestResponse(BaseModel):
     message: str
-    chunks_indexed: int
+    db_size_mb: float
+    chunks_indexed: int   # 0 unless semantic embedding is explicitly triggered
 
 
 @app.post(
     "/api/v1/admin/ingest-tafsir",
     response_model=TafsirIngestResponse,
-    summary="Download tafseer DBs and build tafsir semantic index",
+    summary="Download tafaseer.db (SQLite only — no ChromaDB embedding)",
     tags=["Admin"],
 )
 async def ingest_tafsir(x_admin_key: str = Header(..., alias="X-Admin-Key")) -> Any:
-    """Download the tafseer SQLite databases (~36 MB) and embed all Ibn Kathir
-    and Al-Tabari commentary into the ``tafsir_knowledge`` ChromaDB collection.
+    """Download and extract ``tafaseer.db`` (~36 MB compressed / ~146 MB on disk).
 
-    This is a one-time setup step (~12 000 embeddings, takes several minutes).
-    After completion, ``POST /api/v1/tafsir/search`` will use semantic search
-    instead of the SQLite LIKE keyword fallback.
+    **This endpoint only downloads the SQLite database.**
+    ChromaDB embedding is intentionally skipped to avoid OpenAI rate limits.
+
+    After this call completes:
+    - ``POST /api/v1/tafsir/search`` with a ``reference`` field works immediately
+      (exact SQLite lookup, no embeddings needed).
+    - Free-text ``query`` searches fall back to SQLite ``LIKE``.
+    - To enable semantic (cosine) search, call
+      ``POST /api/v1/admin/ingest-tafsir-semantic`` instead
+      (separate endpoint, triggers the full ChromaDB embedding pipeline).
+
+    Requires the ``X-Admin-Key`` header.
+    """
+    if x_admin_key != settings.admin_api_key:
+        raise HTTPException(status_code=403, detail="Invalid admin key.")
+    try:
+        from pathlib import Path as _Path
+
+        from src.tafsir.database import ensure_database, _db_path
+
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, ensure_database)
+
+        size_mb = round(_db_path().stat().st_size / 1_048_576, 1)
+        return TafsirIngestResponse(
+            message="tafaseer.db downloaded and ready. SQL reference lookup is active.",
+            db_size_mb=size_mb,
+            chunks_indexed=0,
+        )
+    except Exception as exc:
+        logger.exception("Error in /admin/ingest-tafsir")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.post(
+    "/api/v1/admin/ingest-tafsir-semantic",
+    response_model=TafsirIngestResponse,
+    summary="Build ChromaDB semantic index for tafsir (slow, costs OpenAI tokens)",
+    tags=["Admin"],
+)
+async def ingest_tafsir_semantic(
+    x_admin_key: str = Header(..., alias="X-Admin-Key"),
+) -> Any:
+    """Embed Ibn Kathir + Al-Tabari commentary into the ``tafsir_knowledge``
+    ChromaDB collection for semantic (cosine) search.
+
+    **Prerequisites**: ``POST /api/v1/admin/ingest-tafsir`` must be run first
+    to download ``tafaseer.db``.
+
+    **Cost / time**: ~12 472 rows × long texts → tens of thousands of chunks.
+    Uses batches of 100 with 2-second pauses to stay within OpenAI 1M TPM.
+    Ingestion is skipped automatically if the collection is already populated.
 
     Requires the ``X-Admin-Key`` header.
     """
@@ -326,11 +376,13 @@ async def ingest_tafsir(x_admin_key: str = Header(..., alias="X-Admin-Key")) -> 
         store = TafsirStore()
         chunks = await loop.run_in_executor(None, store.build_collection)
         return TafsirIngestResponse(
-            message="Tafsir ingestion complete.",
+            message="Tafsir semantic index built." if chunks else
+                    "Tafsir semantic index already populated — nothing to do.",
+            db_size_mb=0.0,
             chunks_indexed=chunks,
         )
     except Exception as exc:
-        logger.exception("Error in /admin/ingest-tafsir")
+        logger.exception("Error in /admin/ingest-tafsir-semantic")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 

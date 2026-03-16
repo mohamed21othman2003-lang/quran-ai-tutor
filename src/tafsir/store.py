@@ -128,6 +128,15 @@ class TafsirStore:
 
         Returns the total number of chunks successfully embedded.
         """
+        # --- Skip if collection already contains documents ---
+        if self.is_populated():
+            count = self._get_store()._collection.count()
+            logger.info(
+                "Tafsir collection already populated (%d chunks) — skipping ingestion.",
+                count,
+            )
+            return count
+
         # --- Build full chunk list up-front so we know the total for logging ---
         docs: list[Document] = []
         for row in iter_all_tafsir():

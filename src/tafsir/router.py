@@ -1,15 +1,17 @@
 """Tafsir endpoints.
 
 POST /api/v1/tafsir/search
-  Accepts an ayah reference (``surah:verse``) **or** a free-text query, or both.
+  Accepts an ayah reference (``surah:verse``) **and/or** a free-text query.
 
-  Lookup modes (evaluated in order):
+  Default lookup order (no OpenAI calls required):
   1. Reference lookup  — exact SQLite query against tafaseer.db.
-                         Always available once the DB is downloaded (~36 MB, lazy).
-  2. Semantic search   — ChromaDB cosine-similarity search.
-                         Requires prior ingestion via POST /api/v1/admin/ingest-tafsir.
-  3. Keyword fallback  — SQLite LIKE search used only when semantic store is empty
-                         and a free-text query was given.
+                         Works immediately after POST /api/v1/admin/ingest-tafsir.
+  2. Keyword search    — SQLite LIKE over the ``nass`` column.
+                         Default for free-text queries; no embeddings needed.
+
+  Opt-in semantic mode (requires prior ChromaDB ingestion):
+  3. Semantic search   — ChromaDB cosine-similarity.
+                         Only used when ``semantic=true`` is explicitly passed.
 
   Returns commentary from Ibn Kathir (ابن كثير) and Al-Tabari (الطبري).
 
@@ -64,6 +66,14 @@ class TafsirSearchRequest(BaseModel):
         description="Free-text Arabic or English search query.",
         examples=["ما تفسير آية الكرسي"],
     )
+    semantic: bool = Field(
+        default=False,
+        description=(
+            "Set to true to use ChromaDB semantic search for free-text queries. "
+            "Requires POST /api/v1/admin/ingest-tafsir-semantic to have been run. "
+            "When false (default) SQLite LIKE is used — no OpenAI calls needed."
+        ),
+    )
     language: str = Field(
         default="en",
         pattern="^(en|ar)$",
@@ -109,19 +119,18 @@ async def search_tafsir(request: TafsirSearchRequest) -> Any:
 
     ### Lookup modes
 
-    | Inputs supplied | Mode used | Notes |
-    |---|---|---|
-    | ``reference`` only | **Reference** | Exact SQLite lookup — fast, always available |
-    | ``query`` only (semantic store populated) | **Semantic** | ChromaDB cosine search |
-    | ``query`` only (semantic store empty) | **Keyword** | SQLite LIKE fallback |
-    | Both ``reference`` + ``query`` | **Reference** | Query is ignored when a valid reference resolves results |
+    | Inputs | ``semantic`` | Mode | Requirements |
+    |---|---|---|---|
+    | ``reference`` | any | **reference** | SQLite DB downloaded |
+    | ``query`` | ``false`` (default) | **keyword** | SQLite DB downloaded |
+    | ``query`` | ``true`` | **semantic** | ChromaDB index built |
 
-    ### One-time setup
+    ### Setup
 
-    - **Reference mode** works immediately; the tafseer databases (~36 MB) are
-      downloaded automatically on the first request.
-    - **Semantic mode** requires running ``POST /api/v1/admin/ingest-tafsir``
-      once to build the ChromaDB index (~12 000 embeddings, a few minutes).
+    - Run ``POST /api/v1/admin/ingest-tafsir`` once to download the SQLite DB
+      (~36 MB). Reference and keyword search work immediately after.
+    - Run ``POST /api/v1/admin/ingest-tafsir-semantic`` to build the optional
+      ChromaDB index and unlock ``semantic=true``.
     """
     # Ensure the SQLite database is available (lazy download on first call)
     try:
@@ -138,7 +147,7 @@ async def search_tafsir(request: TafsirSearchRequest) -> Any:
     mode: str = "reference"
 
     # ----------------------------------------------------------------
-    # Mode 1 — exact reference lookup
+    # Mode 1 — exact reference lookup (always SQL, no embeddings)
     # ----------------------------------------------------------------
     if request.reference:
         m = _REF_RE.match(request.reference.strip())
@@ -185,32 +194,36 @@ async def search_tafsir(request: TafsirSearchRequest) -> Any:
         mode = "reference"
 
     # ----------------------------------------------------------------
-    # Mode 2 — semantic or keyword search (when no reference resolved results)
+    # Mode 2 — free-text query (when reference produced no results)
     # ----------------------------------------------------------------
     if request.query and not results:
-        store = _get_store()
-
-        if store.is_populated():
-            # Semantic search via ChromaDB
+        if request.semantic:
+            # --- Opt-in: ChromaDB semantic search ---
+            store = _get_store()
+            if not store.is_populated():
+                raise HTTPException(
+                    status_code=503,
+                    detail=(
+                        "Semantic search index is not built. "
+                        "Run POST /api/v1/admin/ingest-tafsir-semantic first, "
+                        "or set semantic=false to use keyword search."
+                    ),
+                )
             mode = "semantic"
             hits = store.search(request.query, top_k=request.top_k)
             for hit in hits:
                 results.append(TafsirResult(
-                    source=hit["source"],
-                    source_ar=hit["source_ar"],
-                    reference=hit["reference"],
-                    surah=hit["surah"],
-                    ayah=hit["ayah"],
-                    text=hit["text"],
-                    relevance=hit["relevance"],
+                    source=    hit["source"],
+                    source_ar= hit["source_ar"],
+                    reference= hit["reference"],
+                    surah=     hit["surah"],
+                    ayah=      hit["ayah"],
+                    text=      hit["text"],
+                    relevance= hit["relevance"],
                 ))
         else:
-            # Keyword fallback via SQLite LIKE — always available without ingestion
+            # --- Default: SQLite LIKE keyword search (no OpenAI calls) ---
             mode = "keyword"
-            logger.info(
-                "Tafsir semantic store not populated; falling back to LIKE search "
-                "for query: %.80s", request.query,
-            )
             rows = search_tafsir_text(request.query, limit=request.top_k)
             for row in rows:
                 results.append(TafsirResult(
@@ -220,17 +233,19 @@ async def search_tafsir(request: TafsirSearchRequest) -> Any:
                     surah=     row["surah"],
                     ayah=      row["ayah"],
                     text=      row["text"],
-                    relevance= 0.5,   # keyword match — no numeric relevance
+                    relevance= 0.5,   # keyword match — no numeric relevance score
                 ))
 
         if not results:
+            hint = (
+                "Try a different query, or use semantic=true after running "
+                "POST /api/v1/admin/ingest-tafsir-semantic."
+                if not request.semantic
+                else "Try a different query or a reference lookup."
+            )
             raise HTTPException(
                 status_code=404,
-                detail=(
-                    "No tafsir results found for the given query. "
-                    "Try a different query, or run POST /api/v1/admin/ingest-tafsir "
-                    "to enable semantic search."
-                ),
+                detail=f"No tafsir results found for the given query. {hint}",
             )
 
     return TafsirSearchResponse(
