@@ -21,5 +21,8 @@ class Settings(BaseSettings):
     # Admin
     admin_api_key: str = "change-me-admin-key"
 
+    # Tafsir
+    tafsir_db_dir: str = "data/tafsir"
+
 
 settings = Settings()

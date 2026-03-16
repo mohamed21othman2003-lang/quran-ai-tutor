@@ -2,15 +2,19 @@
 
 Endpoints
 ---------
-POST /api/v1/chat              — Tajweed Q&A (RAG + GPT-4o)
-GET  /api/v1/rules             — List all Tajweed rules in the knowledge base
-POST /api/v1/quiz              — Generate a multiple-choice quiz for a given rule
-POST /api/v1/auth/register     — Create account, returns JWT
-POST /api/v1/auth/login        — Authenticate, returns JWT
-POST /api/v1/progress          — Save a learning event (auth required)
-GET  /api/v1/progress/{uid}    — Get user history + weak rules (auth required)
-POST /api/v1/admin/ingest      — Re-ingest knowledge base into ChromaDB (admin key required)
-POST /api/v1/voice/check       — Transcribe recitation + compare with expected ayah
+POST /api/v1/chat                  — Tajweed Q&A (RAG + GPT-4o)
+GET  /api/v1/rules                 — List all Tajweed rules in the knowledge base
+POST /api/v1/quiz                  — Generate a multiple-choice quiz for a given rule
+POST /api/v1/auth/register         — Create account, returns JWT
+POST /api/v1/auth/login            — Authenticate, returns JWT
+POST /api/v1/progress              — Save a learning event (auth required)
+GET  /api/v1/progress/{uid}        — Get user history + weak rules (auth required)
+POST /api/v1/admin/ingest          — Re-ingest knowledge base into ChromaDB (admin key required)
+POST /api/v1/admin/ingest-quran    — Ingest full Quran into quran_verses collection
+POST /api/v1/admin/ingest-tafsir   — Download tafseer DBs + build ChromaDB semantic index
+POST /api/v1/voice/check           — Transcribe recitation + compare with expected ayah
+POST /api/v1/tafsir/search         — Search Ibn Kathir & Al-Tabari commentary
+POST /api/v1/tafsir/ask            — AI-synthesised tafsir Q&A via GPT-4o
 """
 
 import asyncio
@@ -33,6 +37,7 @@ from src.progress.router import router as progress_router
 from src.rag.pipeline import RAGPipeline
 from src.search.router import router as search_router
 from src.tajweed.router import router as tajweed_router
+from src.tafsir.router import router as tafsir_router
 from src.voice.router import router as voice_router
 
 # ------------------------------------------------------------------
@@ -116,6 +121,7 @@ app.include_router(progress_router)
 app.include_router(voice_router)
 app.include_router(search_router)
 app.include_router(tajweed_router)
+app.include_router(tafsir_router)
 
 # ------------------------------------------------------------------
 # Pydantic models
@@ -281,3 +287,89 @@ async def ingest_quran(x_admin_key: str = Header(..., alias="X-Admin-Key")) -> A
     except Exception as exc:
         logger.exception("Error in /admin/ingest-quran")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+# ------------------------------------------------------------------
+# Admin: ingest tafsir
+# ------------------------------------------------------------------
+
+class TafsirIngestResponse(BaseModel):
+    message: str
+    chunks_indexed: int
+
+
+@app.post(
+    "/api/v1/admin/ingest-tafsir",
+    response_model=TafsirIngestResponse,
+    summary="Download tafseer DBs and build tafsir semantic index",
+    tags=["Admin"],
+)
+async def ingest_tafsir(x_admin_key: str = Header(..., alias="X-Admin-Key")) -> Any:
+    """Download the tafseer SQLite databases (~36 MB) and embed all Ibn Kathir
+    and Al-Tabari commentary into the ``tafsir_knowledge`` ChromaDB collection.
+
+    This is a one-time setup step (~12 000 embeddings, takes several minutes).
+    After completion, ``POST /api/v1/tafsir/search`` will use semantic search
+    instead of the SQLite LIKE keyword fallback.
+
+    Requires the ``X-Admin-Key`` header.
+    """
+    if x_admin_key != settings.admin_api_key:
+        raise HTTPException(status_code=403, detail="Invalid admin key.")
+    try:
+        from src.tafsir.database import ensure_databases
+        from src.tafsir.store import TafsirStore
+
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, ensure_databases)
+
+        store = TafsirStore()
+        chunks = await loop.run_in_executor(None, store.build_collection)
+        return TafsirIngestResponse(
+            message="Tafsir ingestion complete.",
+            chunks_indexed=chunks,
+        )
+    except Exception as exc:
+        logger.exception("Error in /admin/ingest-tafsir")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+# ------------------------------------------------------------------
+# Tafsir ask — AI-synthesised answer via TutorAgent
+# ------------------------------------------------------------------
+
+class TafsirAskRequest(BaseModel):
+    question: str = Field(
+        ..., min_length=1, max_length=1000,
+        examples=["What does Ibn Kathir say about Ayat Al-Kursi?"],
+    )
+    language: str = Field(default="en", pattern="^(en|ar)$")
+
+
+class TafsirAskResponse(BaseModel):
+    answer: str
+    sources: list[str]
+
+
+@app.post(
+    "/api/v1/tafsir/ask",
+    response_model=TafsirAskResponse,
+    summary="AI-synthesised tafsir Q&A",
+    tags=["Tafsir"],
+)
+async def tafsir_ask(request: TafsirAskRequest) -> Any:
+    """Answer a question about Quranic interpretation using GPT-4o grounded in
+    Ibn Kathir and Al-Tabari commentary retrieved from the tafsir semantic index.
+
+    Requires ``POST /api/v1/admin/ingest-tafsir`` to be run first.
+    """
+    if agent is None:
+        raise HTTPException(status_code=503, detail="Agent not initialised.")
+    try:
+        result = await agent.answer_tafsir(
+            request.question, language=request.language
+        )
+    except Exception as exc:
+        logger.exception("Error in /tafsir/ask")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return TafsirAskResponse(**result)
