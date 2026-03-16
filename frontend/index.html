@@ -939,6 +939,204 @@
       padding: 10px 14px;
       border: 1px solid var(--border);
     }
+
+    /* ── Utility ── */
+    .hidden { display: none !important; }
+
+    /* ══════════════════════════════════════════════════════════
+       TAFSIR TAB
+    ══════════════════════════════════════════════════════════ */
+    .tafsir-search-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .tafsir-mode-wrap {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .tafsir-mode-label {
+      font-size: .78rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+    .tafsir-mode-toggle {
+      display: flex;
+      background: var(--green-50);
+      border-radius: 10px;
+      padding: 3px;
+      gap: 3px;
+    }
+    .tafsir-mode-btn {
+      border: none;
+      background: transparent;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: .84rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all .2s;
+      font-family: inherit;
+    }
+    .tafsir-mode-btn.active {
+      background: var(--surface);
+      color: var(--green-700);
+      box-shadow: 0 1px 6px rgba(6,78,59,.15);
+    }
+
+    .tafsir-input-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .tafsir-input {
+      flex: 1;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 11px 14px;
+      font-size: .95rem;
+      font-family: inherit;
+      color: var(--text);
+      background: var(--bg);
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .tafsir-input:focus {
+      border-color: var(--green-500);
+      box-shadow: 0 0 0 3px rgba(16,185,129,.15);
+    }
+    .tafsir-input.ar {
+      direction: rtl;
+      font-family: var(--font-ar);
+      font-size: 1.05rem;
+      text-align: right;
+    }
+
+    .tafsir-inline-error {
+      font-size: .84rem;
+      color: var(--red);
+      background: var(--red-light);
+      border-radius: 8px;
+      padding: 9px 14px;
+    }
+
+    /* Results grid — two columns side by side */
+    .tafsir-results-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+    @media (max-width: 640px) {
+      .tafsir-results-grid { grid-template-columns: 1fr; }
+    }
+
+    .tafsir-result-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Card headers: green for Tabari, blue for Kathir */
+    .tafsir-card-header {
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .tafsir-card-header.tafsir-tabari {
+      background: linear-gradient(135deg, var(--green-800), var(--green-600));
+      color: #fff;
+    }
+    .tafsir-card-header.tafsir-kathir {
+      background: linear-gradient(135deg, #1e40af, #3b82f6);
+      color: #fff;
+    }
+    .tafsir-card-meta { display: flex; flex-direction: column; gap: 2px; }
+    .tafsir-card-scholar {
+      font-family: var(--font-ar);
+      font-size: 1.05rem;
+      font-weight: 700;
+      direction: rtl;
+    }
+    .tafsir-card-scholar-en { font-size: .74rem; opacity: .85; }
+    .tafsir-card-ref {
+      background: rgba(255,255,255,.22);
+      border-radius: 20px;
+      padding: 3px 10px;
+      font-size: .78rem;
+      font-weight: 700;
+      font-family: 'Courier New', monospace;
+      flex-shrink: 0;
+      letter-spacing: .03em;
+    }
+
+    .tafsir-card-body {
+      padding: 18px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .tafsir-card-text {
+      font-family: var(--font-ar);
+      font-size: 1rem;
+      line-height: 1.95;
+      color: var(--text);
+      direction: rtl;
+      text-align: right;
+      word-break: break-word;
+      white-space: pre-line;
+    }
+    .tafsir-card-mode-badge {
+      font-size: .7rem;
+      color: var(--text-muted);
+      background: var(--green-50);
+      border-radius: 20px;
+      padding: 2px 10px;
+      width: fit-content;
+    }
+    .tafsir-expand-btn {
+      border: 1.5px solid var(--green-400);
+      background: transparent;
+      color: var(--green-700);
+      font-size: .78rem;
+      font-weight: 600;
+      padding: 6px 14px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-family: inherit;
+      align-self: flex-start;
+      transition: background .2s, color .2s;
+      margin-top: 4px;
+    }
+    .tafsir-expand-btn:hover {
+      background: var(--green-600);
+      border-color: var(--green-600);
+      color: #fff;
+    }
+    .tafsir-mode-footer {
+      grid-column: 1 / -1;
+      font-size: .74rem;
+      color: var(--text-muted);
+      text-align: center;
+      margin-top: 4px;
+    }
   </style>
 </head>
 <body>
@@ -1047,6 +1245,9 @@
     </button>
     <button class="tab-btn" onclick="switchTab('voice')" id="tab-voice">
       <span class="icon">🎙️</span><span class="tab-label" id="lbl-voice">Voice</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('tafsir')" id="tab-tafsir">
+      <span class="icon">📗</span><span class="tab-label" id="lbl-tafsir">Tafsir</span>
     </button>
     <button class="tab-btn" onclick="switchTab('demo')" id="tab-demo">
       <span class="icon">✨</span><span class="tab-label" id="lbl-demo">Demo</span>
@@ -1226,6 +1427,54 @@
       </div>
     </div>
   </div>
+
+  <!-- ── Tafsir Panel ── -->
+  <div class="panel" id="panel-tafsir">
+    <div class="panel-header">
+      <div>
+        <h2 id="tafsir-heading">Tafsir Search</h2>
+        <p id="tafsir-sub">Commentary from Ibn Kathir &amp; Al-Tabari</p>
+      </div>
+    </div>
+
+    <!-- Search card -->
+    <div class="tafsir-search-card">
+      <!-- Mode toggle: reference vs keyword -->
+      <div class="tafsir-mode-wrap">
+        <span class="tafsir-mode-label" id="tafsir-mode-label">Search by</span>
+        <div class="tafsir-mode-toggle">
+          <button class="tafsir-mode-btn active" id="tafsir-mode-ref" onclick="setTafsirMode('ref')">
+            <span id="tafsir-mod-ref-lbl">Reference (2:255)</span>
+          </button>
+          <button class="tafsir-mode-btn" id="tafsir-mode-key" onclick="setTafsirMode('key')">
+            <span id="tafsir-mod-key-lbl">Keyword</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Input + submit -->
+      <div class="tafsir-input-row">
+        <input type="text" id="tafsir-input" class="tafsir-input"
+          placeholder="e.g. 2:255"
+          onkeydown="if(event.key==='Enter') runTafsirSearch()" />
+        <button class="fetch-btn" id="tafsir-btn" onclick="runTafsirSearch()">
+          <span>📗</span><span id="tafsir-btn-lbl">Search</span>
+        </button>
+      </div>
+
+      <!-- Inline validation error -->
+      <div class="tafsir-inline-error hidden" id="tafsir-error"></div>
+    </div>
+
+    <!-- Loading spinner -->
+    <div class="spinner-row hidden" id="tafsir-spinner">
+      <div class="spinner"></div>
+      <span id="tafsir-loading-lbl">Searching tafsir…</span>
+    </div>
+
+    <!-- Results: two cards side by side -->
+    <div class="tafsir-results-grid" id="tafsir-results"></div>
+  </div>
 </main>
 
   <!-- ── Demo Panel ── -->
@@ -1395,6 +1644,26 @@ const i18n = {
     surahLabel: 'Surah', verseLabel: 'Verse',
     canonicalOutLbl: 'Canonical (Quran DB)',
     ayahNotInQuran: 'Text not found in the Quran verse database. Please enter a valid ayah.',
+    tafsir: 'Tafsir',
+    tafsirHeading: 'Tafsir Search',
+    tafsirSub: 'Commentary from Ibn Kathir & Al-Tabari',
+    tafsirModeLabel: 'Search by',
+    tafsirModRef: 'Reference (2:255)',
+    tafsirModKey: 'Keyword',
+    tafsirRefPlaceholder: 'e.g. 2:255',
+    tafsirKeyPlaceholder: 'e.g. patience in hardship',
+    tafsirSearchBtn: 'Search',
+    tafsirLoading: 'Searching tafsir…',
+    tafsirNoResults: 'No tafsir found. Try a different reference or keyword.',
+    tafsirError: 'Could not fetch tafsir. Is the database downloaded?',
+    tafsirEmptyRef: 'Enter a reference like 2:255',
+    tafsirEmptyQuery: 'Enter a keyword to search',
+    tafsirReadMore: 'Read more ↓',
+    tafsirReadLess: 'Read less ↑',
+    tafsirModeRef: 'Exact reference',
+    tafsirModeKeyword: 'Keyword search',
+    tafsirModeSemantic: 'Semantic search',
+    tafsirModeUsed: 'Mode',
   },
   ar: {
     appTitle: 'مساعد تعلّم التجويد',
@@ -1472,6 +1741,26 @@ const i18n = {
     surahLabel: 'سورة', verseLabel: 'آية',
     canonicalOutLbl: 'النص القرآني الأصلي',
     ayahNotInQuran: 'لم يُعثر على النص في قاعدة بيانات الآيات. يُرجى إدخال آية قرآنية صحيحة.',
+    tafsir: 'تفسير',
+    tafsirHeading: 'البحث في التفسير',
+    tafsirSub: 'تفسير ابن كثير والطبري',
+    tafsirModeLabel: 'البحث بـ',
+    tafsirModRef: 'مرجع (سورة:آية)',
+    tafsirModKey: 'كلمة مفتاحية',
+    tafsirRefPlaceholder: 'مثال: 2:255',
+    tafsirKeyPlaceholder: 'مثال: الصبر',
+    tafsirSearchBtn: 'بحث',
+    tafsirLoading: 'جارٍ البحث في التفسير…',
+    tafsirNoResults: 'لا توجد نتائج. جرّب مرجعاً أو كلمة مختلفة.',
+    tafsirError: 'تعذّر جلب التفسير. هل قاعدة البيانات محمّلة؟',
+    tafsirEmptyRef: 'أدخل مرجعاً مثل 2:255',
+    tafsirEmptyQuery: 'أدخل كلمة للبحث',
+    tafsirReadMore: 'قراءة المزيد ↓',
+    tafsirReadLess: 'إخفاء ↑',
+    tafsirModeRef: 'بحث مرجعي',
+    tafsirModeKeyword: 'بحث بكلمة مفتاحية',
+    tafsirModeSemantic: 'بحث دلالي',
+    tafsirModeUsed: 'طريقة البحث',
   }
 };
 
@@ -1550,6 +1839,20 @@ function applyI18n() {
   const statusEl = $('voice-status-lbl');
   if (statusEl && !statusEl.classList.contains('recording') && !statusEl.classList.contains('processing')) {
     statusEl.textContent = t('voiceIdle');
+  }
+
+  // Tafsir tab
+  $('lbl-tafsir').textContent            = t('tafsir');
+  $('tafsir-heading').textContent        = t('tafsirHeading');
+  $('tafsir-sub').textContent            = t('tafsirSub');
+  $('tafsir-mode-label').textContent     = t('tafsirModeLabel');
+  $('tafsir-mod-ref-lbl').textContent    = t('tafsirModRef');
+  $('tafsir-mod-key-lbl').textContent    = t('tafsirModKey');
+  $('tafsir-btn-lbl').textContent        = t('tafsirSearchBtn');
+  $('tafsir-loading-lbl').textContent    = t('tafsirLoading');
+  const tafsirInput = $('tafsir-input');
+  if (tafsirInput) {
+    tafsirInput.placeholder = tafsirMode === 'ref' ? t('tafsirRefPlaceholder') : t('tafsirKeyPlaceholder');
   }
 
   // Auth inputs direction
@@ -2414,6 +2717,191 @@ async function runReport() {
   } finally {
     btn.disabled = false;
     document.getElementById('report-btn-lbl').textContent = t('reportBtn');
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Tafsir — search by reference (surah:ayah) or keyword
+═══════════════════════════════════════════════════════════ */
+let tafsirMode = 'ref'; // 'ref' | 'key'
+
+// Store full texts separately to avoid large data-attributes with Arabic chars
+const _tafsirFullTexts = {};
+
+function setTafsirMode(mode) {
+  tafsirMode = mode;
+  document.getElementById('tafsir-mode-ref').classList.toggle('active', mode === 'ref');
+  document.getElementById('tafsir-mode-key').classList.toggle('active', mode === 'key');
+
+  const input = document.getElementById('tafsir-input');
+  if (mode === 'ref') {
+    input.placeholder = t('tafsirRefPlaceholder');
+    input.classList.remove('ar');
+    input.removeAttribute('dir');
+  } else {
+    input.placeholder = t('tafsirKeyPlaceholder');
+    input.classList.add('ar');
+    input.setAttribute('dir', 'rtl');
+  }
+
+  // Clear previous results when mode changes
+  document.getElementById('tafsir-results').innerHTML = '';
+  document.getElementById('tafsir-error').classList.add('hidden');
+}
+
+async function runTafsirSearch() {
+  const inputEl  = document.getElementById('tafsir-input');
+  const errEl    = document.getElementById('tafsir-error');
+  const spinner  = document.getElementById('tafsir-spinner');
+  const resultsEl = document.getElementById('tafsir-results');
+  const btn      = document.getElementById('tafsir-btn');
+  const query    = inputEl.value.trim();
+
+  errEl.classList.add('hidden');
+
+  if (!query) {
+    errEl.textContent = tafsirMode === 'ref' ? t('tafsirEmptyRef') : t('tafsirEmptyQuery');
+    errEl.classList.remove('hidden');
+    inputEl.focus();
+    return;
+  }
+
+  btn.disabled = true;
+  document.getElementById('tafsir-btn-lbl').textContent = t('tafsirLoading');
+  spinner.classList.remove('hidden');
+  resultsEl.innerHTML = '';
+
+  const body = tafsirMode === 'ref'
+    ? { reference: query }
+    : { query, semantic: false };
+
+  try {
+    const data = await apiPost('/api/v1/tafsir/search', body);
+    renderTafsirResults(data);
+  } catch (err) {
+    const msg = err.message || t('tafsirError');
+    errEl.textContent = msg;
+    errEl.classList.remove('hidden');
+    showToast(msg);
+  } finally {
+    btn.disabled = false;
+    document.getElementById('tafsir-btn-lbl').textContent = t('tafsirSearchBtn');
+    spinner.classList.add('hidden');
+  }
+}
+
+// Canonical display order: Tabari first, Kathir second
+const TAFSIR_ORDER = ['Al-Tabari', 'Ibn Kathir'];
+
+// Map source name → stable CSS key (no spaces/special chars for element IDs)
+const TAFSIR_KEY = { 'Al-Tabari': 'tabari', 'Ibn Kathir': 'kathir' };
+const TAFSIR_HEADER_CLASS = { tabari: 'tafsir-tabari', kathir: 'tafsir-kathir' };
+
+// Preview character limit before "Read more" toggle
+const TAFSIR_PREVIEW_CHARS = 700;
+
+function renderTafsirResults(data) {
+  const resultsEl = document.getElementById('tafsir-results');
+  resultsEl.innerHTML = '';
+
+  if (!data.results || !data.results.length) {
+    resultsEl.innerHTML =
+      `<div class="empty-state" style="grid-column:1/-1">${t('tafsirNoResults')}</div>`;
+    return;
+  }
+
+  // Group results by source name
+  const bySource = {};
+  data.results.forEach(r => {
+    if (!bySource[r.source]) bySource[r.source] = [];
+    bySource[r.source].push(r);
+  });
+
+  // Sort: canonical order first, then any extras
+  const sources = TAFSIR_ORDER.filter(s => bySource[s])
+    .concat(Object.keys(bySource).filter(s => !TAFSIR_ORDER.includes(s)));
+
+  sources.forEach(source => {
+    const entries   = bySource[source];
+    const first     = entries[0];
+    const sourceKey = TAFSIR_KEY[source] || source.toLowerCase().replace(/\s+/g, '-');
+    const hdrClass  = TAFSIR_HEADER_CLASS[sourceKey] || 'tafsir-tabari';
+
+    // For keyword mode, concatenate multiple ayah hits with their references
+    const fullText = entries.map(e =>
+      entries.length > 1 ? `[${e.reference}]\n${e.text}` : e.text
+    ).join('\n\n');
+
+    const isLong      = fullText.length > TAFSIR_PREVIEW_CHARS;
+    const previewText = isLong ? fullText.slice(0, TAFSIR_PREVIEW_CHARS) + '…' : fullText;
+
+    // Store full text in JS object, not in a DOM attribute (Arabic text can be 30+ KB)
+    _tafsirFullTexts[sourceKey]             = fullText;
+    _tafsirFullTexts[sourceKey + '_preview'] = previewText;
+
+    const refBadge = first.reference
+      ? `<span class="tafsir-card-ref">${first.reference}</span>`
+      : '';
+
+    const modeBadge = data.mode === 'keyword'
+      ? `<div class="tafsir-card-mode-badge">🔍 ${t('tafsirModeKeyword')}</div>`
+      : '';
+
+    const expandBtn = isLong
+      ? `<button class="tafsir-expand-btn"
+           data-source="${sourceKey}"
+           data-expanded="false"
+           onclick="toggleTafsirExpand(this)">${t('tafsirReadMore')}</button>`
+      : '';
+
+    const card = document.createElement('div');
+    card.className = 'tafsir-result-card';
+    card.innerHTML = `
+      <div class="tafsir-card-header ${hdrClass}">
+        <div class="tafsir-card-meta">
+          <div class="tafsir-card-scholar">${first.source_ar || source}</div>
+          <div class="tafsir-card-scholar-en">${source}</div>
+        </div>
+        ${refBadge}
+      </div>
+      <div class="tafsir-card-body">
+        ${modeBadge}
+        <p class="tafsir-card-text" id="tafsir-text-${sourceKey}">${previewText}</p>
+        ${expandBtn}
+      </div>`;
+
+    resultsEl.appendChild(card);
+  });
+
+  // Mode footer
+  if (data.mode) {
+    const modeLabels = {
+      reference: t('tafsirModeRef'),
+      keyword:   t('tafsirModeKeyword'),
+      semantic:  t('tafsirModeSemantic'),
+    };
+    const footer = document.createElement('div');
+    footer.className = 'tafsir-mode-footer';
+    footer.textContent = `🔎 ${t('tafsirModeUsed')}: ${modeLabels[data.mode] || data.mode}`;
+    resultsEl.appendChild(footer);
+  }
+}
+
+function toggleTafsirExpand(btn) {
+  const sourceKey  = btn.dataset.source;
+  const isExpanded = btn.dataset.expanded === 'true';
+  const textEl     = document.getElementById('tafsir-text-' + sourceKey);
+
+  if (isExpanded) {
+    textEl.textContent     = _tafsirFullTexts[sourceKey + '_preview'];
+    btn.dataset.expanded   = 'false';
+    btn.textContent        = t('tafsirReadMore');
+  } else {
+    textEl.textContent     = _tafsirFullTexts[sourceKey];
+    btn.dataset.expanded   = 'true';
+    btn.textContent        = t('tafsirReadLess');
+    // Smooth scroll so the newly-revealed text is visible
+    textEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 }
 
