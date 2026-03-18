@@ -167,11 +167,57 @@ class TafsirStore:
                 self._store = None
                 self.reset_collection()
 
-        # --- Build full chunk list ---
-        docs: list[Document] = []
+        # --- Stream rows from SQLite, embed batch-by-batch ---
+        # Never pre-build the full doc list — that loads hundreds of MB of Arabic
+        # commentary into memory at once and OOMs on Railway's 512 MB limit.
+        from langchain_community.vectorstores import FAISS
+
+        logger.info("Tafsir FAISS ingest starting (streaming from SQLite)…")
+
+        faiss_store = None
+        cur_batch: list[Document] = []
+        embedded = 0
+        batch_num = 0
+
+        def _flush(b: list[Document]) -> None:
+            nonlocal faiss_store, embedded, batch_num
+            batch_num += 1
+            for attempt in range(1, 3):
+                try:
+                    if faiss_store is None:
+                        faiss_store = FAISS.from_documents(
+                            documents=b,
+                            embedding=self._embeddings,
+                        )
+                    else:
+                        faiss_store.add_documents(b)
+                    break
+                except Exception as exc:
+                    err = str(exc).lower()
+                    is_rate_limit = (
+                        "rate" in err or "429" in err
+                        or "ratelimit" in err or "too many" in err
+                    )
+                    if attempt == 1 and is_rate_limit:
+                        logger.warning(
+                            "Rate limit on batch %d — sleeping %ds …",
+                            batch_num, RATE_LIMIT_SLEEP_S,
+                        )
+                        time.sleep(RATE_LIMIT_SLEEP_S)
+                    else:
+                        logger.exception(
+                            "Embedding failed on batch %d (attempt %d): %s",
+                            batch_num, attempt, exc,
+                        )
+                        raise
+            embedded += len(b)
+            if embedded % PROGRESS_LOG_EVERY < EMBED_BATCH:
+                logger.info("FAISS ingest: ~%d chunks embedded (batch %d)", embedded, batch_num)
+            time.sleep(BATCH_SLEEP_S)
+
         for row in iter_all_tafsir():
             for chunk in _split_text(row["text"]):
-                docs.append(Document(
+                cur_batch.append(Document(
                     page_content=chunk,
                     metadata={
                         "source":     row["name_en"],
@@ -182,69 +228,16 @@ class TafsirStore:
                         "reference":  row["reference"],
                     },
                 ))
+                if len(cur_batch) >= EMBED_BATCH:
+                    _flush(cur_batch)
+                    cur_batch = []
 
-        if not docs:
+        if cur_batch:
+            _flush(cur_batch)
+
+        if not embedded:
             logger.warning("No tafsir documents found — is tafaseer.db downloaded?")
             return 0
-
-        total = len(docs)
-        total_batches = (total + EMBED_BATCH - 1) // EMBED_BATCH
-        estimated_min = (total_batches * (BATCH_SLEEP_S + 1)) / 60
-        logger.info(
-            "Tafsir FAISS ingest: %d chunks, %d batches of %d (~%.0f min estimated).",
-            total, total_batches, EMBED_BATCH, estimated_min,
-        )
-
-        from langchain_community.vectorstores import FAISS
-
-        faiss_store = None
-        embedded = 0
-
-        for i in range(0, total, EMBED_BATCH):
-            batch = docs[i : i + EMBED_BATCH]
-            batch_num = i // EMBED_BATCH + 1
-
-            for attempt in range(1, 3):
-                try:
-                    if faiss_store is None:
-                        faiss_store = FAISS.from_documents(
-                            documents=batch,
-                            embedding=self._embeddings,
-                        )
-                    else:
-                        faiss_store.add_documents(batch)
-                    break
-                except Exception as exc:
-                    err = str(exc).lower()
-                    is_rate_limit = (
-                        "rate" in err or "429" in err or "ratelimit" in err
-                        or "too many" in err
-                    )
-                    if attempt == 1 and is_rate_limit:
-                        logger.warning(
-                            "Rate limit on batch %d/%d — sleeping %ds …",
-                            batch_num, total_batches, RATE_LIMIT_SLEEP_S,
-                        )
-                        time.sleep(RATE_LIMIT_SLEEP_S)
-                    else:
-                        logger.exception(
-                            "Embedding failed on batch %d/%d (attempt %d): %s",
-                            batch_num, total_batches, attempt, exc,
-                        )
-                        raise
-
-            embedded += len(batch)
-
-            prev_m = (embedded - len(batch)) // PROGRESS_LOG_EVERY
-            curr_m = embedded // PROGRESS_LOG_EVERY
-            if curr_m > prev_m or embedded >= total:
-                logger.info(
-                    "FAISS ingest progress: %d / %d (%.1f%%) — batch %d / %d",
-                    embedded, total, embedded / total * 100, batch_num, total_batches,
-                )
-
-            if i + EMBED_BATCH < total:
-                time.sleep(BATCH_SLEEP_S)
 
         # --- Persist to disk ---
         if faiss_store is not None:

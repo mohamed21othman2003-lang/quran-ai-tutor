@@ -236,37 +236,39 @@ def search_tafsir_text(query: str, limit: int = 10) -> list[dict]:
 
 
 def iter_all_tafsir() -> Iterator[dict]:
-    """Yield every row for Ibn Kathir and Al-Tabari in (sura, ayah) order.
+    """Stream every row for Ibn Kathir and Al-Tabari using a server-side cursor.
+
+    Uses cursor iteration (not ``fetchall``) so only one row is held in memory
+    at a time — avoids OOM when the full result set is hundreds of MB.
 
     Yields dicts with the same keys as ``get_tafsir_for_ayah()``.
-    Used by ``TafsirStore.build_collection()`` to embed content into ChromaDB.
+    Used by ``TafsirStore.build_collection()`` to embed content into FAISS.
     """
     ids = tuple(TAFSIR_SOURCES.keys())
     placeholders = ",".join("?" * len(ids))
 
     conn = _open_db()
     try:
-        rows = conn.execute(
+        cursor = conn.execute(
             f"SELECT tafseer, sura, ayah, nass "
             f"FROM Tafseer "
             f"WHERE tafseer IN ({placeholders}) "
             f"ORDER BY tafseer, sura, ayah",
             ids,
-        ).fetchall()
+        )
+        for row in cursor:
+            tid = row["tafseer"]
+            meta = TAFSIR_SOURCES.get(tid, {"name_en": f"Tafseer {tid}", "name_ar": ""})
+            nass = (row["nass"] or "").strip()
+            if nass:
+                yield {
+                    "tafseer_id": tid,
+                    "name_en":   meta["name_en"],
+                    "name_ar":   meta["name_ar"],
+                    "surah":     row["sura"],
+                    "ayah":      row["ayah"],
+                    "reference": f"{row['sura']}:{row['ayah']}",
+                    "text":      nass,
+                }
     finally:
         conn.close()
-
-    for row in rows:
-        tid = row["tafseer"]
-        meta = TAFSIR_SOURCES.get(tid, {"name_en": f"Tafseer {tid}", "name_ar": ""})
-        nass = (row["nass"] or "").strip()
-        if nass:
-            yield {
-                "tafseer_id": tid,
-                "name_en":   meta["name_en"],
-                "name_ar":   meta["name_ar"],
-                "surah":     row["sura"],
-                "ayah":      row["ayah"],
-                "reference": f"{row['sura']}:{row['ayah']}",
-                "text":      nass,
-            }
