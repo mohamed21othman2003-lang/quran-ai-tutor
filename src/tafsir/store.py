@@ -17,6 +17,7 @@ is much higher. At EMBED_BATCH=100 with a 2-second inter-batch pause and a
 """
 
 import logging
+import os
 import time
 from pathlib import Path
 from typing import Any
@@ -90,14 +91,17 @@ class TafsirStore:
             openai_api_key=settings.openai_api_key,
         )
         self._store: Chroma | None = None
-        Path(settings.chroma_persist_dir).mkdir(parents=True, exist_ok=True)
+        # Use a dedicated persistent directory so the tafsir index survives
+        # across Railway deployments independently of the main RAG store.
+        self._chroma_dir = os.environ.get("TAFSIR_CHROMA_DIR", settings.tafsir_chroma_dir)
+        os.makedirs(self._chroma_dir, exist_ok=True)
 
     def _get_store(self) -> Chroma:
         if self._store is None:
             self._store = Chroma(
                 collection_name=COLLECTION_NAME,
                 embedding_function=self._embeddings,
-                persist_directory=str(Path(settings.chroma_persist_dir)),
+                persist_directory=self._chroma_dir,
             )
         return self._store
 
@@ -168,7 +172,7 @@ class TafsirStore:
             total, total_batches, EMBED_BATCH, estimated_min,
         )
 
-        persist_dir = str(Path(settings.chroma_persist_dir))
+        persist_dir = self._chroma_dir
         store: Chroma | None = None
         embedded = 0
 

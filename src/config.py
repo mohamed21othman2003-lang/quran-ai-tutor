@@ -23,6 +23,7 @@ class Settings(BaseSettings):
 
     # Tafsir
     tafsir_db_dir: str = "data/tafsir"
+    tafsir_chroma_dir: str = "/data/tafsir_chroma"
 
 
 settings = Settings()
