@@ -507,10 +507,37 @@ async def disk_usage(x_admin_key: str = Header(..., alias="X-Admin-Key")) -> Any
         return round(total / 1024 / 1024, 2)
 
     disk = _shutil.disk_usage("/")
+    # Check Railway volume at /data/ separately (different filesystem from root)
+    try:
+        vol = _shutil.disk_usage("/data")
+        vol_total_gb  = round(vol.total / 1024**3, 2)
+        vol_used_gb   = round(vol.used  / 1024**3, 2)
+        vol_free_gb   = round(vol.free  / 1024**3, 2)
+    except Exception:
+        vol_total_gb = vol_used_gb = vol_free_gb = None
+
+    # List top-level entries in /data/ with sizes
+    data_entries: dict = {}
+    data_path = _Path("/data")
+    if data_path.exists():
+        for child in sorted(data_path.iterdir()):
+            try:
+                if child.is_file():
+                    data_entries[child.name] = round(child.stat().st_size / 1024**2, 2)
+                elif child.is_dir():
+                    total = sum(f.stat().st_size for f in child.rglob("*") if f.is_file())
+                    data_entries[child.name + "/"] = round(total / 1024**2, 2)
+            except Exception:
+                data_entries[child.name] = "error"
+
     return {
-        "disk_total_gb":  round(disk.total / 1024**3, 2),
-        "disk_used_gb":   round(disk.used  / 1024**3, 2),
-        "disk_free_gb":   round(disk.free  / 1024**3, 2),
+        "root_disk_total_gb": round(disk.total / 1024**3, 2),
+        "root_disk_used_gb":  round(disk.used  / 1024**3, 2),
+        "root_disk_free_gb":  round(disk.free  / 1024**3, 2),
+        "volume_total_gb":    vol_total_gb,
+        "volume_used_gb":     vol_used_gb,
+        "volume_free_gb":     vol_free_gb,
+        "data_entries_mb":    data_entries,
         "tafsir_chroma_mb": dir_size_mb(settings.tafsir_chroma_dir),
         "tafsir_db_mb":     dir_size_mb(settings.tafsir_db_dir),
         "chroma_db_mb":     dir_size_mb(settings.chroma_persist_dir),
