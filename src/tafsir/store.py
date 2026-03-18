@@ -18,6 +18,7 @@ is much higher. At EMBED_BATCH=100 with a 2-second inter-batch pause and a
 
 import logging
 import os
+import shutil
 import time
 from pathlib import Path
 from typing import Any
@@ -116,6 +117,22 @@ class TafsirStore:
     # Ingestion
     # ------------------------------------------------------------------
 
+    def _wipe_dir_contents(self) -> None:
+        """Delete every file/subdir inside the chroma directory, keeping the dir itself."""
+        chroma_path = Path(self._chroma_dir)
+        if not chroma_path.exists():
+            chroma_path.mkdir(parents=True, exist_ok=True)
+            return
+        for item in list(chroma_path.iterdir()):
+            try:
+                if item.is_dir():
+                    shutil.rmtree(item)
+                else:
+                    item.unlink()
+            except Exception as exc:
+                logger.warning("Could not remove %s: %s", item, exc)
+        logger.info("Wiped contents of %s", self._chroma_dir)
+
     def build_collection(self) -> int:
         """Embed Ibn Kathir + Al-Tabari tafsir into the ``tafsir_knowledge`` collection.
 
@@ -133,13 +150,22 @@ class TafsirStore:
         Returns the total number of chunks successfully embedded.
         """
         # --- Skip if collection already contains documents ---
-        if self.is_populated():
-            count = self._get_store()._collection.count()
-            logger.info(
-                "Tafsir collection already populated (%d chunks) — skipping ingestion.",
-                count,
+        # If opening the existing collection fails (e.g. compaction / WAL error),
+        # auto-wipe the directory and start fresh so callers don't need a manual reset.
+        try:
+            if self.is_populated():
+                count = self._get_store()._collection.count()
+                logger.info(
+                    "Tafsir collection already populated (%d chunks) — skipping ingestion.",
+                    count,
+                )
+                return count
+        except Exception as exc:
+            logger.warning(
+                "Existing tafsir collection unreadable (%s) — wiping and rebuilding.", exc
             )
-            return count
+            self._store = None
+            self._wipe_dir_contents()
 
         # --- Build full chunk list up-front so we know the total for logging ---
         docs: list[Document] = []
@@ -291,49 +317,13 @@ class TafsirStore:
             return []
 
     def reset_collection(self) -> None:
-        """Delete the ChromaDB collection and wipe the persistence directory.
+        """Wipe the ChromaDB persistence directory contents and reset in-memory state.
 
-        A soft ``delete_collection()`` alone leaves WAL / segment files that
-        cause "Failed to apply logs" compaction errors on the next ingest.
-        We therefore do a full filesystem wipe of the chroma directory so
-        ChromaDB starts completely fresh.
-
+        Keeps the directory itself (Railway Volume mount point must not be deleted).
         After calling this, run ``build_collection()`` to rebuild the index.
         """
-        import shutil
-
-        # Drop the in-memory reference first so no handle holds the files open
         self._store = None
-
-        # Try the soft delete first (best-effort — ignore errors)
-        try:
-            import chromadb
-            client = chromadb.PersistentClient(path=self._chroma_dir)
-            client.delete_collection(COLLECTION_NAME)
-            logger.info("Soft-deleted ChromaDB collection '%s'.", COLLECTION_NAME)
-        except Exception as exc:
-            logger.warning("Soft delete failed (will still wipe directory): %s", exc)
-
-        # Wipe the *contents* of the chroma directory but keep the directory
-        # itself — on Railway, the directory is a Volume mount point and
-        # deleting it with rmtree disconnects the volume.
-        chroma_path = Path(self._chroma_dir)
-        try:
-            if chroma_path.exists():
-                for item in chroma_path.iterdir():
-                    if item.is_dir():
-                        shutil.rmtree(item)
-                    else:
-                        item.unlink()
-                logger.info(
-                    "Wiped contents of tafsir chroma directory: %s", self._chroma_dir
-                )
-            else:
-                chroma_path.mkdir(parents=True, exist_ok=True)
-                logger.info("Created tafsir chroma directory: %s", self._chroma_dir)
-        except Exception as exc:
-            logger.exception("Failed to wipe tafsir chroma directory contents: %s", exc)
-            raise
+        self._wipe_dir_contents()
 
 
 # ------------------------------------------------------------------
