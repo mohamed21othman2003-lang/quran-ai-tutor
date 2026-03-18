@@ -481,6 +481,38 @@ async def reset_tafsir_index(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+@app.get(
+    "/api/v1/admin/disk-usage",
+    summary="Show disk usage of key data directories",
+    tags=["Admin"],
+)
+async def disk_usage(x_admin_key: str = Header(..., alias="X-Admin-Key")) -> Any:
+    """Return sizes (MB) of the data directories and overall disk stats."""
+    if x_admin_key != settings.admin_api_key:
+        raise HTTPException(status_code=403, detail="Invalid admin key.")
+    import shutil as _shutil
+    from pathlib import Path as _Path
+
+    def dir_size_mb(p: str) -> float:
+        path = _Path(p)
+        if not path.exists():
+            return 0.0
+        total = sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
+        return round(total / 1024 / 1024, 2)
+
+    disk = _shutil.disk_usage("/")
+    return {
+        "disk_total_gb":  round(disk.total / 1024**3, 2),
+        "disk_used_gb":   round(disk.used  / 1024**3, 2),
+        "disk_free_gb":   round(disk.free  / 1024**3, 2),
+        "tafsir_chroma_mb": dir_size_mb(settings.tafsir_chroma_dir),
+        "tafsir_db_mb":     dir_size_mb(settings.tafsir_db_dir),
+        "chroma_db_mb":     dir_size_mb(settings.chroma_persist_dir),
+        "tafsir_chroma_dir": settings.tafsir_chroma_dir,
+        "tafsir_db_dir":     settings.tafsir_db_dir,
+    }
+
+
 # ------------------------------------------------------------------
 # Tafsir ask — AI-synthesised answer via TutorAgent
 # ------------------------------------------------------------------

@@ -122,20 +122,23 @@ class TafsirStore:
     # ------------------------------------------------------------------
 
     def _wipe_dir_contents(self) -> None:
-        """Delete every file/subdir inside the chroma directory, keeping the dir itself."""
+        """Fully wipe the chroma subdirectory and recreate it empty.
+
+        Uses ``shutil.rmtree`` on the *subdirectory* itself (safe — the Railway
+        Volume is mounted at the parent, e.g. ``/data/``, not at
+        ``/data/tafsir_chroma/``).  This reliably frees space from all
+        previous partial writes, including locked WAL files.
+        """
         chroma_path = Path(self._chroma_dir)
-        if not chroma_path.exists():
+        try:
+            if chroma_path.exists():
+                shutil.rmtree(chroma_path)
+                logger.info("Removed tafsir chroma directory: %s", self._chroma_dir)
             chroma_path.mkdir(parents=True, exist_ok=True)
-            return
-        for item in list(chroma_path.iterdir()):
-            try:
-                if item.is_dir():
-                    shutil.rmtree(item)
-                else:
-                    item.unlink()
-            except Exception as exc:
-                logger.warning("Could not remove %s: %s", item, exc)
-        logger.info("Wiped contents of %s", self._chroma_dir)
+            logger.info("Created fresh tafsir chroma directory: %s", self._chroma_dir)
+        except Exception as exc:
+            logger.exception("Failed to wipe tafsir chroma directory: %s", exc)
+            raise
 
     def build_collection(self) -> int:
         """Embed Ibn Kathir + Al-Tabari tafsir into the ``tafsir_knowledge`` collection.
