@@ -2549,10 +2549,10 @@
       <div class="voice-card">
         <!-- Expected ayah input -->
         <div class="field">
-          <label id="voice-expected-lbl">Expected Ayah (optional)</label>
+          <label id="voice-expected-lbl">الآية المتوقعة (مطلوب)</label>
           <textarea id="voice-expected" rows="2" dir="auto"
             placeholder="بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ"></textarea>
-          <p class="field-hint" id="voice-hint">If provided, your recitation will be compared word-by-word.</p>
+          <p class="field-hint" id="voice-hint">أدخل الآية التي ستتلوها قبل التسجيل</p>
         </div>
 
         <!-- Record controls -->
@@ -2867,8 +2867,8 @@
         voice: 'Voice',
         voiceHeading: 'Voice Recitation Check',
         voiceSub: 'Record yourself reciting and get instant Tajweed feedback',
-        voiceExpectedLbl: 'Expected Ayah (optional)',
-        voiceHint: 'If provided, your recitation will be compared word-by-word.',
+        voiceExpectedLbl: '\u0627\u0644\u0622\u064a\u0629 \u0627\u0644\u0645\u062a\u0648\u0642\u0639\u0629 (\u0645\u0637\u0644\u0648\u0628)',
+        voiceHint: '\u0623\u062f\u062e\u0644 \u0627\u0644\u0622\u064a\u0629 \u0627\u0644\u062a\u064a \u0633\u062a\u062a\u0644\u0648\u0647\u0627 \u0642\u0628\u0644 \u0627\u0644\u062a\u0633\u062c\u064a\u0644',
         voiceIdle: 'Tap the mic to start recording',
         voiceRecording: '🔴 Recording… press Stop when done',
         voiceProcessing: '⏳ Transcribing…',
@@ -3794,11 +3794,18 @@
       player.src = URL.createObjectURL(blob);
       player.classList.remove('hidden');
 
-      // Send to API
+      // Validate expected text before sending
       const expectedText = document.getElementById('voice-expected').value.trim();
+      if (!expectedText) {
+        showToast('\u064a\u0631\u062c\u0649 \u0625\u062f\u062e\u0627\u0644 \u0627\u0644\u0622\u064a\u0629 \u0627\u0644\u0645\u062a\u0648\u0642\u0639\u0629 \u0623\u0648\u0644\u0627\u064b');
+        setVoiceStatus('voiceIdle');
+        return;
+      }
+
+      // Send to API
       const form = new FormData();
       form.append('audio', blob, 'recording.webm');
-      if (expectedText) form.append('expected_text', expectedText);
+      form.append('expected_text', expectedText);
 
       try {
         const res = await fetch(API + '/api/v1/voice/check', { method: 'POST', body: form });
