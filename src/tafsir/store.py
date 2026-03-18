@@ -291,21 +291,39 @@ class TafsirStore:
             return []
 
     def reset_collection(self) -> None:
-        """Delete the ChromaDB collection and reset the in-memory handle.
+        """Delete the ChromaDB collection and wipe the persistence directory.
 
-        Useful when the on-disk collection is corrupted (e.g. compaction errors).
+        A soft ``delete_collection()`` alone leaves WAL / segment files that
+        cause "Failed to apply logs" compaction errors on the next ingest.
+        We therefore do a full filesystem wipe of the chroma directory so
+        ChromaDB starts completely fresh.
+
         After calling this, run ``build_collection()`` to rebuild the index.
         """
-        import chromadb
+        import shutil
+
+        # Drop the in-memory reference first so no handle holds the files open
+        self._store = None
+
+        # Try the soft delete first (best-effort — ignore errors)
         try:
+            import chromadb
             client = chromadb.PersistentClient(path=self._chroma_dir)
             client.delete_collection(COLLECTION_NAME)
-            logger.info("Deleted ChromaDB collection '%s'.", COLLECTION_NAME)
+            logger.info("Soft-deleted ChromaDB collection '%s'.", COLLECTION_NAME)
         except Exception as exc:
-            logger.warning("Could not delete collection '%s': %s", COLLECTION_NAME, exc)
-        finally:
-            # Reset the cached store so the next call recreates it cleanly
-            self._store = None
+            logger.warning("Soft delete failed (will still wipe directory): %s", exc)
+
+        # Full filesystem wipe — removes WAL, segment, and index files
+        try:
+            if Path(self._chroma_dir).exists():
+                shutil.rmtree(self._chroma_dir)
+                logger.info("Wiped tafsir chroma directory: %s", self._chroma_dir)
+            Path(self._chroma_dir).mkdir(parents=True, exist_ok=True)
+            logger.info("Recreated empty tafsir chroma directory.")
+        except Exception as exc:
+            logger.exception("Failed to wipe tafsir chroma directory: %s", exc)
+            raise
 
 
 # ------------------------------------------------------------------
