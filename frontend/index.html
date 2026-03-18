@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en" dir="ltr">
 
 <head>
@@ -4322,7 +4322,7 @@
       resultsEl.innerHTML = '';
 
       // Always search by Arabic text
-      const body = { query, semantic: true };
+      const body = { query, semantic: false };
 
       try {
         const data = await apiPost('/api/v1/tafsir/search', body);
