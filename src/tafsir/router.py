@@ -134,7 +134,9 @@ async def search_tafsir(request: TafsirSearchRequest) -> Any:
     """
     # Ensure the SQLite database is available (lazy download on first call)
     try:
-        ensure_database()
+        import asyncio as _asyncio
+        loop = _asyncio.get_running_loop()
+        await loop.run_in_executor(None, ensure_database)
     except Exception as exc:
         logger.exception("Tafseer database download failed")
         raise HTTPException(

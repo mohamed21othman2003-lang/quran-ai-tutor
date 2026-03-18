@@ -99,6 +99,14 @@ class RAGPipeline:
 
     def ingest(self) -> None:
         """Full ingestion pipeline: load → chunk → embed → store."""
+        # Delete existing collection to avoid duplicate chunks on re-ingest
+        try:
+            existing = self.get_vector_store()
+            existing._client.delete_collection(COLLECTION_NAME)
+            self.vector_store = None
+            logger.info("Deleted existing vector store collection before re-ingest.")
+        except Exception:
+            logger.warning("Could not delete existing collection — proceeding anyway.")
         docs = self.load_documents()
         chunks = self.chunk_documents(docs)
         self.vector_store = self.build_vector_store(chunks)

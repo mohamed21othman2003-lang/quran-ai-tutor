@@ -1456,26 +1456,45 @@
   <!-- ── Quiz Panel ── -->
   <div class="panel" id="panel-quiz">
     <div class="quiz-input-card">
+      <!-- Category -->
       <div class="field">
-        <label id="quiz-rule-lbl">Tajweed Rule</label>
-        <input type="text" id="quiz-rule-input" placeholder="e.g. Ikhfa" />
+        <label>الموضوع</label>
+        <select id="quiz-category-select" onchange="toggleQuizRuleField()">
+          <option value="tajweed">التجويد</option>
+          <option value="quran">حفظ القرآن</option>
+          <option value="tafsir">التفسير وعلوم القرآن</option>
+          <option value="general">عام (كل المواضيع)</option>
+        </select>
       </div>
-      <div class="field" style="max-width:120px">
-        <label id="quiz-lang-lbl">Language</label>
+      <!-- Rule input — shown only for tajweed -->
+      <div class="field" id="quiz-rule-field">
+        <label>قاعدة التجويد (اختياري)</label>
+        <input type="text" id="quiz-rule-input" placeholder="مثال: الإخفاء" />
+      </div>
+      <!-- Number of questions -->
+      <div class="field" style="max-width:110px">
+        <label>عدد الأسئلة</label>
+        <select id="quiz-count-select">
+          <option value="1">1</option>
+          <option value="3" selected>3</option>
+          <option value="5">5</option>
+          <option value="10">10</option>
+        </select>
+      </div>
+      <!-- Language -->
+      <div class="field" style="max-width:110px">
+        <label>اللغة</label>
         <select id="quiz-lang-select">
-          <option value="en">English</option>
           <option value="ar">العربية</option>
+          <option value="en">English</option>
         </select>
       </div>
       <button class="fetch-btn" id="quiz-btn" onclick="generateQuiz()" style="margin-top:22px">
-        <span>🎯</span><span id="quiz-btn-lbl">Generate</span>
+        <span>🎯</span><span id="quiz-btn-lbl">توليد الاختبار</span>
       </button>
     </div>
-    <div id="quiz-result">
-      <p id="quiz-question"></p>
-      <div class="options-grid" id="options-grid"></div>
-      <div class="explanation-box" id="explanation-box"></div>
-    </div>
+    <div id="quiz-progress-bar" style="display:none;margin:12px 0;text-align:center;color:var(--green-700);font-size:.9rem"></div>
+    <div id="quiz-questions-wrap"></div>
   </div>
 
   <!-- ── Progress Panel ── -->
@@ -1690,23 +1709,11 @@
 
     <!-- Search card -->
     <div class="tafsir-search-card">
-      <!-- Mode toggle: reference vs keyword -->
-      <div class="tafsir-mode-wrap">
-        <span class="tafsir-mode-label" id="tafsir-mode-label">Search by</span>
-        <div class="tafsir-mode-toggle">
-          <button class="tafsir-mode-btn active" id="tafsir-mode-ref" onclick="setTafsirMode('ref')">
-            <span id="tafsir-mod-ref-lbl">Reference (2:255)</span>
-          </button>
-          <button class="tafsir-mode-btn" id="tafsir-mode-key" onclick="setTafsirMode('key')">
-            <span id="tafsir-mod-key-lbl">Keyword</span>
-          </button>
-        </div>
-      </div>
-
       <!-- Input + submit -->
       <div class="tafsir-input-row">
-        <input type="text" id="tafsir-input" class="tafsir-input"
-          placeholder="e.g. 2:255"
+        <input type="text" id="tafsir-input" class="tafsir-input ar"
+          dir="rtl"
+          placeholder="اكتب نص الآية هنا… مثال: الحمد لله رب العالمين"
           onkeydown="if(event.key==='Enter') runTafsirSearch()" />
         <button class="fetch-btn" id="tafsir-btn" onclick="runTafsirSearch()">
           <span>📗</span><span id="tafsir-btn-lbl">Search</span>
@@ -1772,28 +1779,6 @@
       <div id="detect-results" class="demo-results"></div>
     </div>
 
-    <!-- C) Recitation Report -->
-    <div class="demo-card">
-      <div class="demo-card-title" id="demo-report-title">📋 Recitation Report</div>
-      <p class="demo-card-desc" id="demo-report-desc">Generate a full AI improvement report from a voice check result.</p>
-      <div class="field">
-        <label id="report-transcribed-lbl">Transcribed text</label>
-        <textarea id="report-transcribed" rows="2" dir="rtl" style="font-family:var(--font-ar)"></textarea>
-      </div>
-      <div class="field">
-        <label id="report-expected-lbl">Expected ayah</label>
-        <textarea id="report-expected" rows="2" dir="rtl" style="font-family:var(--font-ar)"></textarea>
-      </div>
-      <div class="field" style="max-width:180px">
-        <label id="report-score-lbl">Match score: <span id="report-score-val">70</span>%</label>
-        <input type="range" id="report-score" min="0" max="100" value="70"
-          oninput="document.getElementById('report-score-val').textContent=this.value">
-      </div>
-      <button class="fetch-btn" id="report-btn" onclick="runReport()">
-        <span>📋</span><span id="report-btn-lbl">Generate Report</span>
-      </button>
-      <div id="report-result" class="demo-results"></div>
-    </div>
   </div>
 </main>
 
@@ -2162,15 +2147,8 @@ function applyI18n() {
   $('lbl-tafsir').textContent            = t('tafsir');
   $('tafsir-heading').textContent        = t('tafsirHeading');
   $('tafsir-sub').textContent            = t('tafsirSub');
-  $('tafsir-mode-label').textContent     = t('tafsirModeLabel');
-  $('tafsir-mod-ref-lbl').textContent    = t('tafsirModRef');
-  $('tafsir-mod-key-lbl').textContent    = t('tafsirModKey');
   $('tafsir-btn-lbl').textContent        = t('tafsirSearchBtn');
   $('tafsir-loading-lbl').textContent    = t('tafsirLoading');
-  const tafsirInput = $('tafsir-input');
-  if (tafsirInput) {
-    tafsirInput.placeholder = tafsirMode === 'ref' ? t('tafsirRefPlaceholder') : t('tafsirKeyPlaceholder');
-  }
 
   // Auth inputs direction
   ['login-username','login-password','reg-username','reg-password','reg-confirm'].forEach(id => {
@@ -2487,51 +2465,101 @@ function renderRules(rules) {
 /* ═══════════════════════════════════════════════════════════
    Quiz
 ═══════════════════════════════════════════════════════════ */
-async function generateQuiz() {
-  const rule = document.getElementById('quiz-rule-input').value.trim();
-  const ql   = document.getElementById('quiz-lang-select').value;
-  if (!rule) { showToast(t('enterRuleName')); return; }
+function toggleQuizRuleField() {
+  const cat = document.getElementById('quiz-category-select').value;
+  document.getElementById('quiz-rule-field').style.display = cat === 'tajweed' ? '' : 'none';
+}
 
-  currentQuizRule = rule;
-  const btn = document.getElementById('quiz-btn');
+const QUIZ_CAT_LABELS = {
+  tajweed: 'التجويد', quran: 'حفظ القرآن',
+  tafsir: 'علوم التفسير', general: 'عام'
+};
+
+async function generateQuiz() {
+  const category = document.getElementById('quiz-category-select').value;
+  const rule     = document.getElementById('quiz-rule-input').value.trim();
+  const count    = parseInt(document.getElementById('quiz-count-select').value);
+  const ql       = document.getElementById('quiz-lang-select').value;
+  const btn      = document.getElementById('quiz-btn');
+  const wrap     = document.getElementById('quiz-questions-wrap');
+  const prog     = document.getElementById('quiz-progress-bar');
+
   btn.disabled = true;
-  document.getElementById('quiz-btn-lbl').textContent = t('loadingQuiz');
-  document.getElementById('quiz-result').classList.remove('visible');
+  document.getElementById('quiz-btn-lbl').textContent = ql === 'ar' ? 'جارٍ التوليد…' : 'Generating…';
+  wrap.innerHTML = '';
+  prog.style.display = '';
+  prog.textContent = ql === 'ar' ? `جارٍ توليد ${count} أسئلة…` : `Generating ${count} questions…`;
+
+  const topic = category === 'tajweed' && rule
+    ? rule
+    : (QUIZ_CAT_LABELS[category] || category);
+
+  const promises = Array.from({ length: count }, () =>
+    apiPost('/api/v1/quiz', { rule: topic, language: ql }).catch(() => null)
+  );
 
   try {
-    const data = await apiPost('/api/v1/quiz', { rule, language: ql });
-    renderQuiz(data, ql);
+    const results = await Promise.all(promises);
+    prog.style.display = 'none';
+    const valid = results.filter(Boolean);
+    if (!valid.length) { showToast(t('errorApi')); return; }
+    valid.forEach((data, idx) => renderQuizCard(data, ql, idx, topic));
   } catch {
     showToast(t('errorApi'));
+    prog.style.display = 'none';
   } finally {
     btn.disabled = false;
-    document.getElementById('quiz-btn-lbl').textContent = t('generate');
+    document.getElementById('quiz-btn-lbl').textContent = ql === 'ar' ? 'توليد الاختبار' : 'Generate';
   }
 }
 
-function renderQuiz(data, ql) {
-  quizAnswered = false;
+function renderQuizCard(data, ql, idx, topic) {
   const isAr   = ql === 'ar';
   const letters = ['A', 'B', 'C', 'D'];
+  const wrap   = document.getElementById('quiz-questions-wrap');
 
-  const qEl = document.getElementById('quiz-question');
-  qEl.textContent = data.question;
-  qEl.className   = isAr ? 'ar' : '';
+  const card = document.createElement('div');
+  card.className = 'quiz-input-card';
+  card.style.cssText = 'flex-direction:column;gap:12px;margin-bottom:16px;align-items:flex-start';
 
-  const grid = document.getElementById('options-grid');
-  grid.innerHTML = '';
+  const qNum = document.createElement('p');
+  qNum.style.cssText = 'font-size:.8rem;color:var(--text-muted);margin:0';
+  qNum.textContent = isAr ? `سؤال ${idx + 1}` : `Question ${idx + 1}`;
+
+  const qText = document.createElement('p');
+  qText.className = isAr ? 'ar' : '';
+  qText.style.cssText = 'font-size:1.05rem;font-weight:600;margin:0;line-height:1.5';
+  qText.textContent = data.question;
+
+  const grid = document.createElement('div');
+  grid.className = 'options-grid';
+
+  let answered = false;
+  const expl = document.createElement('div');
+  expl.className = `explanation-box${isAr ? ' ar' : ''}`;
+
   (data.options || []).forEach((opt, i) => {
-    const btn = document.createElement('button');
-    btn.className = `option-btn${isAr ? ' ar' : ''}`;
-    btn.innerHTML = `<span class="opt-letter">${letters[i]}</span><span>${opt}</span>`;
-    btn.onclick = () => selectOption(i, data.correct_index, data.explanation, ql);
-    grid.appendChild(btn);
+    const obtn = document.createElement('button');
+    obtn.className = `option-btn${isAr ? ' ar' : ''}`;
+    obtn.innerHTML = `<span class="opt-letter">${letters[i]}</span><span>${opt}</span>`;
+    obtn.onclick = () => {
+      if (answered) return;
+      answered = true;
+      const isCorrect = i === data.correct_index;
+      grid.querySelectorAll('.option-btn').forEach((b, j) => {
+        b.disabled = true;
+        if (j === data.correct_index) b.classList.add('correct');
+        else if (j === i) b.classList.add('wrong');
+      });
+      expl.textContent = data.explanation;
+      expl.classList.add('visible');
+      saveProgress(topic || 'general', isCorrect ? 1.0 : 0.0, 'quiz');
+    };
+    grid.appendChild(obtn);
   });
 
-  const expl = document.getElementById('explanation-box');
-  expl.textContent = '';
-  expl.className   = `explanation-box${isAr ? ' ar' : ''}`;
-  document.getElementById('quiz-result').classList.add('visible');
+  card.append(qNum, qText, grid, expl);
+  wrap.appendChild(card);
 }
 
 function selectOption(chosen, correct, explanation, ql) {
@@ -2893,9 +2921,17 @@ async function runAyahSearch() {
 
   try {
     const data = await apiPost('/api/v1/search/ayah', { query, language: lang, top_k: topK });
-    if (!data.results.length) { box.innerHTML = `<div class="empty-state">${t('noResultsFound')}</div>`; return; }
+    // Filter results below 40% relevance
+    const filtered = (data.results || []).filter(r => r.relevance >= 0.40);
+    if (!filtered.length) {
+      const noMsg = lang === 'ar'
+        ? 'لم يتم العثور على آيات ذات صلة. حاول صياغة البحث بشكل مختلف.'
+        : 'No relevant ayahs found. Try rephrasing your search.';
+      box.innerHTML = `<div class="empty-state">${noMsg}</div>`;
+      return;
+    }
     box.innerHTML = '';
-    data.results.forEach((r, i) => {
+    filtered.forEach((r, i) => {
       const pct  = Math.round(r.relevance * 100);
       const card = document.createElement('div');
       card.className = 'ayah-card';
@@ -3219,25 +3255,8 @@ let tafsirMode = 'ref'; // 'ref' | 'key'
 // Store full texts separately to avoid large data-attributes with Arabic chars
 const _tafsirFullTexts = {};
 
-function setTafsirMode(mode) {
-  tafsirMode = mode;
-  document.getElementById('tafsir-mode-ref').classList.toggle('active', mode === 'ref');
-  document.getElementById('tafsir-mode-key').classList.toggle('active', mode === 'key');
-
-  const input = document.getElementById('tafsir-input');
-  if (mode === 'ref') {
-    input.placeholder = t('tafsirRefPlaceholder');
-    input.classList.remove('ar');
-    input.removeAttribute('dir');
-  } else {
-    input.placeholder = t('tafsirKeyPlaceholder');
-    input.classList.add('ar');
-    input.setAttribute('dir', 'rtl');
-  }
-
-  // Clear previous results when mode changes
-  document.getElementById('tafsir-results').innerHTML = '';
-  document.getElementById('tafsir-error').classList.add('hidden');
+function setTafsirMode(_mode) {
+  // Mode toggle removed — always search by Arabic text; kept as no-op for safety
 }
 
 async function runTafsirSearch() {
@@ -3262,9 +3281,8 @@ async function runTafsirSearch() {
   spinner.classList.remove('hidden');
   resultsEl.innerHTML = '';
 
-  const body = tafsirMode === 'ref'
-    ? { reference: query }
-    : { query, semantic: false };
+  // Always search by Arabic text
+  const body = { query, semantic: false };
 
   try {
     const data = await apiPost('/api/v1/tafsir/search', body);

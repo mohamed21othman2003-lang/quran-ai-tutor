@@ -28,6 +28,9 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from pydantic import BaseModel, Field
 
 from src.agents.tutor_agent import TutorAgent
@@ -47,6 +50,7 @@ from src.voice.router import router as voice_router
 
 logging.basicConfig(level=settings.log_level.upper())
 logger = logging.getLogger(__name__)
+limiter = Limiter(key_func=get_remote_address)
 
 # ------------------------------------------------------------------
 # App state (shared across requests)
@@ -88,6 +92,8 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ------------------------------------------------------------------
 # CORS
@@ -95,7 +101,11 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://web-production-fa50b.up.railway.app",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -107,6 +117,15 @@ app.add_middleware(
 FRONTEND_DIR = Path(__file__).parent.parent.parent / "frontend"
 
 app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
+
+
+@app.get("/health", include_in_schema=False)
+async def health_check():
+    return {
+        "status": "ok",
+        "rag_populated": rag.is_populated() if rag else False,
+        "agent_ready": agent is not None,
+    }
 
 
 @app.get("/", include_in_schema=False)
@@ -235,7 +254,7 @@ async def ingest(x_admin_key: str = Header(..., alias="X-Admin-Key")) -> Any:
         raise HTTPException(status_code=503, detail="RAG pipeline not initialised.")
     try:
         logger.info("Admin triggered re-ingestion.")
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, rag.ingest)
         rules = rag.get_all_rule_names()
         chunks = rag.get_vector_store()._collection.count()
@@ -276,7 +295,7 @@ async def ingest_quran(x_admin_key: str = Header(..., alias="X-Admin-Key")) -> A
             create_markdown_files,
             ensure_quran_json,
         )
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         quran_data = await loop.run_in_executor(None, ensure_quran_json)
         md_count = await loop.run_in_executor(None, create_markdown_files, quran_data)
         ayah_count = await loop.run_in_executor(None, build_quran_collection, quran_data)
@@ -329,7 +348,7 @@ async def ingest_tafsir(x_admin_key: str = Header(..., alias="X-Admin-Key")) -> 
 
         from src.tafsir.database import ensure_database, _db_path
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, ensure_database)
 
         size_mb = round(_db_path().stat().st_size / 1_048_576, 1)
@@ -370,7 +389,7 @@ async def ingest_tafsir_semantic(
         from src.tafsir.database import ensure_database
         from src.tafsir.store import TafsirStore
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, ensure_database)
 
         store = TafsirStore()
