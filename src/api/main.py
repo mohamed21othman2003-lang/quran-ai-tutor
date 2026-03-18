@@ -380,10 +380,10 @@ def _run_tafsir_semantic_ingest() -> None:
     _tafsir_ingest_state = {"status": "running", "chunks": 0, "error": ""}
     try:
         from src.tafsir.database import ensure_database
-        from src.tafsir.store import TafsirStore
+        from src.tafsir.store import get_tafsir_store
 
         ensure_database()
-        store = TafsirStore()
+        store = get_tafsir_store()   # use singleton — avoids concurrent-init race
         chunks = store.build_collection()
         _tafsir_ingest_state = {"status": "done", "chunks": chunks, "error": ""}
         logger.info("Background tafsir ingest complete: %d chunks.", chunks)

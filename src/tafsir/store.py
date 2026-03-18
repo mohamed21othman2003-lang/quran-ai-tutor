@@ -180,6 +180,16 @@ class TafsirStore:
             self._store = None
             self._wipe_dir_contents()
 
+        # --- Pre-initialise the ChromaDB database so the schema (tenants table,
+        # etc.) exists before Chroma.from_documents() tries to use it. ---
+        try:
+            import chromadb as _chromadb
+            _client = _chromadb.PersistentClient(path=self._chroma_dir)
+            _client.heartbeat()
+            logger.debug("ChromaDB pre-init OK for %s", self._chroma_dir)
+        except Exception as _exc:
+            logger.warning("ChromaDB pre-init warning (non-fatal): %s", _exc)
+
         # --- Build full chunk list up-front so we know the total for logging ---
         docs: list[Document] = []
         for row in iter_all_tafsir():
