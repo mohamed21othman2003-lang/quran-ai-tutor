@@ -423,7 +423,7 @@ def _generate_memorization_tips(
 # Identification threshold: cosine distance â‰¤ this value is considered a match.
 # Mirrors _MATCH_DISTANCE_THRESHOLD in QuranVerifier but kept local so the
 # endpoint can apply a slightly more generous cutoff for fragmented recitations.
-_MEMORIZATION_ID_THRESHOLD = 0.70
+_MEMORIZATION_ID_THRESHOLD = 0.85
 
 
 @router.post(
@@ -509,7 +509,7 @@ async def memorization_check(
         )
         return MemorizationResponse(
             identified=False,
-            message_ar="Ù„Ù… ÙŠØªÙ… Ø§Ù„ØªØ¹Ø±Ù Ø¹Ù„Ù‰ Ø§Ù„Ø¢ÙŠØ©ØŒ Ø­Ø§ÙˆÙ„ Ù…Ø±Ø© Ø£Ø®Ø±Ù‰",
+            message_ar="لم يتم التعرف على الآية، حاول مرة أخرى",
             message_en="Could not identify the ayah, please try again",
         )
 
