@@ -398,34 +398,28 @@ def _generate_memorization_tips(
     wrong_words: list[str],
     reference: str,
 ) -> list[str]:
-    """Return 2â€“4 Arabic memorization improvement tips based on error analysis.
-
-    Rule-based (no LLM call) so it is fast, free, and always available.
-    """
     tips: list[str] = []
 
     if score >= 0.9:
-        tips.append("Ø£Ø¯Ø§Ø¡ Ø±Ø§Ø¦Ø¹! Ø§Ø³ØªÙ…Ø± ÙÙŠ Ù…Ø±Ø§Ø¬Ø¹Ø© Ø§Ù„Ø¢ÙŠØ© ÙŠÙˆÙ…ÙŠØ§Ù‹ Ù„Ù„Ø­ÙØ§Ø¸ Ø¹Ù„Ù‰ Ø­ÙØ¸Ùƒ.")
+        tips.append("أداء رائع! استمر في مراجعة الآية يومياً للحفاظ على حفظك.")
     elif score >= 0.7:
-        tips.append(f"Ø­ÙØ¸ Ø¬ÙŠØ¯! Ø±ÙƒÙ‘Ø² Ø¹Ù„Ù‰ Ø§Ù„Ù…ÙˆØ§Ø¶Ø¹ Ø§Ù„ØªÙŠ Ø£Ø®Ø·Ø£Øª ÙÙŠÙ‡Ø§ ÙˆØ±Ø§Ø¬Ø¹Ù‡Ø§ Ù…Ù† Ø§Ù„Ù…ØµØ­Ù.")
+        tips.append("حفظ جيد! ركّز على المواضع التي أخطأت فيها وراجعها من المصحف.")
     else:
-        tips.append(f"Ø±Ø§Ø¬Ø¹ Ø§Ù„Ø¢ÙŠØ© {reference} Ù…Ù† Ø§Ù„Ù…ØµØ­Ù Ø¹Ø¯Ø© Ù…Ø±Ø§Øª Ù‚Ø¨Ù„ Ø¥Ø¹Ø§Ø¯Ø© Ø§Ù„ØªØ³Ø¬ÙŠÙ„.")
+        tips.append("راجع الآية " + reference + " من المصحف عدة مرات قبل إعادة التسجيل.")
 
     if missing_words:
-        sample = "ØŒ ".join(missing_words[:5])
-        tips.append(f"Ø§Ù„ÙƒÙ„Ù…Ø§Øª Ø§Ù„Ù†Ø§Ù‚ØµØ© Ø§Ù„ØªÙŠ ØªØ­ØªØ§Ø¬ Ø¥Ù„Ù‰ Ù…Ø±Ø§Ø¬Ø¹Ø©: {sample}.")
+        sample = "، ".join(missing_words[:5])
+        tips.append("الكلمات الناقصة التي تحتاج إلى مراجعة: " + sample + ".")
 
     if wrong_words:
-        tips.append("Ø§Ù†ØªØ¨Ù‡ Ù„Ø¯Ù‚Ø© Ù†Ø·Ù‚ Ø§Ù„ÙƒÙ„Ù…Ø§Øª ÙˆØªØ£ÙƒØ¯ Ù…Ù† Ù…Ø·Ø§Ø¨Ù‚ØªÙ‡Ø§ Ù„Ù„Ù†Øµ Ø§Ù„Ù‚Ø±Ø¢Ù†ÙŠ Ø§Ù„ØµØ­ÙŠØ­.")
+        tips.append("انتبه لدقة نطق الكلمات وتأكد من مطابقتها للنص القرآني الصحيح.")
 
     if score < 0.5:
-        tips.append("Ø§Ù‚Ø±Ø£ Ø§Ù„Ø¢ÙŠØ© Ù…Ù† Ø§Ù„Ù…ØµØ­Ù Ø¹Ø´Ø± Ù…Ø±Ø§Øª Ø«Ù… Ø§Ø­ÙØ¸Ù‡Ø§ ÙƒÙ„Ù…Ø©Ù‹ Ø¨ÙƒÙ„Ù…Ø©.")
+        tips.append("اقرأ الآية من المصحف عشر مرات ثم احفظها كلمةً بكلمة.")
     elif score < 0.8:
-        tips.append("Ù‚Ø³Ù‘Ù… Ø§Ù„Ø¢ÙŠØ© Ø¥Ù„Ù‰ Ø£Ø¬Ø²Ø§Ø¡ ØµØºÙŠØ±Ø© ÙˆØ§Ø­ÙØ¸ ÙƒÙ„ Ø¬Ø²Ø¡ Ù…Ù†ÙØ±Ø¯Ø§Ù‹ Ù‚Ø¨Ù„ Ø±Ø¨Ø·Ù‡Ø§ Ù…Ø¹Ø§Ù‹.")
+        tips.append("قسّم الآية إلى أجزاء صغيرة واحفظ كل جزء منفرداً قبل ربطها معاً.")
 
-    return tips[:4]  # cap at 4 tips
-
-
+    return tips[:4]
 # Identification threshold: cosine distance â‰¤ this value is considered a match.
 # Mirrors _MATCH_DISTANCE_THRESHOLD in QuranVerifier but kept local so the
 # endpoint can apply a slightly more generous cutoff for fragmented recitations.
@@ -532,7 +526,7 @@ async def memorization_check(
     ]
     # Format substitutions as "expectedâ†got" so the frontend can split on â†
     wrong_words: list[str] = [
-        f"{e.expected}â†{e.got}" for e in errors if e.type == "substitution"
+        f"{e.expected}←{e.got}" for e in errors if e.type == "substitution"
     ]
 
     tips = _generate_memorization_tips(
