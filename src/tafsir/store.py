@@ -314,15 +314,25 @@ class TafsirStore:
         except Exception as exc:
             logger.warning("Soft delete failed (will still wipe directory): %s", exc)
 
-        # Full filesystem wipe — removes WAL, segment, and index files
+        # Wipe the *contents* of the chroma directory but keep the directory
+        # itself — on Railway, the directory is a Volume mount point and
+        # deleting it with rmtree disconnects the volume.
+        chroma_path = Path(self._chroma_dir)
         try:
-            if Path(self._chroma_dir).exists():
-                shutil.rmtree(self._chroma_dir)
-                logger.info("Wiped tafsir chroma directory: %s", self._chroma_dir)
-            Path(self._chroma_dir).mkdir(parents=True, exist_ok=True)
-            logger.info("Recreated empty tafsir chroma directory.")
+            if chroma_path.exists():
+                for item in chroma_path.iterdir():
+                    if item.is_dir():
+                        shutil.rmtree(item)
+                    else:
+                        item.unlink()
+                logger.info(
+                    "Wiped contents of tafsir chroma directory: %s", self._chroma_dir
+                )
+            else:
+                chroma_path.mkdir(parents=True, exist_ok=True)
+                logger.info("Created tafsir chroma directory: %s", self._chroma_dir)
         except Exception as exc:
-            logger.exception("Failed to wipe tafsir chroma directory: %s", exc)
+            logger.exception("Failed to wipe tafsir chroma directory contents: %s", exc)
             raise
 
 
