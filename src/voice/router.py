@@ -1,4 +1,4 @@
-"""Voice correction endpoint — Quran recitation transcription + Tajweed error detection.
+﻿"""Voice correction endpoint â€” Quran recitation transcription + Tajweed error detection.
 
 Uses tarteel-ai/whisper-base-ar-quran (fine-tuned Whisper for Quranic Arabic).
 Model is downloaded on first request (~290 MB) and cached for subsequent calls.
@@ -27,9 +27,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/voice", tags=["Voice"])
 
-# Lazy singletons — loaded on first request so startup stays fast
-_asr_pipeline: Any = None
-_ASR_MODEL = "tarteel-ai/whisper-base-ar-quran"
+# Lazy singletons â€” loaded on first request so startup stays fast
 _quran_verifier: QuranVerifier | None = None
 
 
@@ -54,7 +52,7 @@ def _get_report_llm() -> ChatOpenAI:
         )
     return _report_llm
 
-# Arabic diacritics (harakat) — stripped before comparison so missing
+# Arabic diacritics (harakat) â€” stripped before comparison so missing
 # tashkeel in user input doesn't count as an error
 _DIACRITICS = re.compile(r"[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E4\u06E7\u06E8\u06EA-\u06ED]")
 
@@ -72,7 +70,7 @@ class RecitationError(BaseModel):
 class VoiceCheckResponse(BaseModel):
     transcribed_text: str
     expected_text: str
-    match_score: float              # 0.0 – 1.0
+    match_score: float              # 0.0 â€“ 1.0
     is_correct: bool                # True if match_score >= 0.85
     errors: list[RecitationError]
     # Quran verification fields
@@ -99,9 +97,9 @@ class MemorizationResponse(BaseModel):
     surah_name: str = ""           # Arabic surah name
     canonical_text: str = ""       # exact Quran text from DB
     transcribed_text: str = ""     # raw ASR output
-    memorization_score: float = 0.0   # 0.0 – 1.0 word-level similarity
+    memorization_score: float = 0.0   # 0.0 â€“ 1.0 word-level similarity
     missing_words: list[str] = []  # words present in canonical but absent in recitation
-    wrong_words: list[str] = []    # substituted words, format "expected←got"
+    wrong_words: list[str] = []    # substituted words, format "expectedâ†got"
     tips: list[str] = []           # Arabic improvement tips (rule-based)
 
     # Populated only when identified=False
@@ -113,23 +111,30 @@ class MemorizationResponse(BaseModel):
 # Helpers
 # ------------------------------------------------------------------
 
-def _get_pipeline():
-    """Return the ASR pipeline, initialising it on first call."""
-    global _asr_pipeline
-    if _asr_pipeline is None:
-        logger.info("Loading ASR model %s (first request — may take a moment)…", _ASR_MODEL)
-        from transformers import pipeline as hf_pipeline
-        _asr_pipeline = hf_pipeline(
-            "automatic-speech-recognition",
-            model=_ASR_MODEL,
-            device=-1,  # CPU
-        )
-        logger.info("ASR model loaded.")
-    return _asr_pipeline
+
+
+async def _transcribe_with_openai(audio_array: np.ndarray) -> str:
+    """Transcribe Quranic Arabic audio using OpenAI Whisper API (whisper-1)."""
+    import io
+    import openai
+    import soundfile as sf
+    buf = io.BytesIO()
+    sf.write(buf, audio_array, 16000, format="WAV", subtype="PCM_16")
+    buf.seek(0)
+    buf.name = "recitation.wav"
+    client = openai.AsyncOpenAI(api_key=settings.openai_api_key)
+    response = await client.audio.transcriptions.create(
+        model="whisper-1",
+        file=buf,
+        language="ar",
+        prompt="بسم الله الرحمن الرحيم",
+    )
+    return response.text.strip()
+
 
 
 def _ffmpeg_exe() -> str:
-    """Return path to ffmpeg binary — prefers system ffmpeg, falls back to imageio-ffmpeg bundle."""
+    """Return path to ffmpeg binary â€” prefers system ffmpeg, falls back to imageio-ffmpeg bundle."""
     import shutil
     sys_ffmpeg = shutil.which("ffmpeg")
     if sys_ffmpeg:
@@ -301,13 +306,13 @@ async def voice_check(
                         "code": "AYAH_NOT_FOUND",
                         "en": "The provided text was not found in the Quran verse database. "
                               "Please enter a valid ayah.",
-                        "ar": "لم يُعثر على النص المُدخَل في قاعدة بيانات الآيات القرآنية. "
-                              "يُرجى إدخال آية قرآنية صحيحة.",
+                        "ar": "Ù„Ù… ÙŠÙØ¹Ø«Ø± Ø¹Ù„Ù‰ Ø§Ù„Ù†Øµ Ø§Ù„Ù…ÙØ¯Ø®ÙŽÙ„ ÙÙŠ Ù‚Ø§Ø¹Ø¯Ø© Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ø¢ÙŠØ§Øª Ø§Ù„Ù‚Ø±Ø¢Ù†ÙŠØ©. "
+                              "ÙŠÙØ±Ø¬Ù‰ Ø¥Ø¯Ø®Ø§Ù„ Ø¢ÙŠØ© Ù‚Ø±Ø¢Ù†ÙŠØ© ØµØ­ÙŠØ­Ø©.",
                     },
                 )
         else:
             logger.warning(
-                "Quran verifier not populated — comparing vs user input. "
+                "Quran verifier not populated â€” comparing vs user input. "
                 "Run `python -m src.rag.ingest_quran` to enable canonical comparison."
             )
 
@@ -330,21 +335,14 @@ async def voice_check(
     if rms < MIN_RMS:
         raise HTTPException(status_code=422, detail="No speech detected in the audio. Please record your recitation and try again.")
 
-    # --- Transcribe ---
+    # --- Transcribe via OpenAI Whisper API ---
     try:
-        asr = _get_pipeline()
-        result = asr({"raw": audio_array, "sampling_rate": 16000})
-        transcribed = result["text"].strip()
-    except IndexError as exc:
-        # Whisper model crashes on near-silent / too-short audio (index out of bounds)
-        logger.warning("ASR IndexError — likely silent audio: %s", exc)
-        raise HTTPException(
-            status_code=422,
-            detail="No speech detected in the audio. Please record your recitation and try again.",
-        ) from exc
+        transcribed = await _transcribe_with_openai(audio_array)
     except Exception as exc:
-        logger.exception("ASR inference failed")
+        logger.exception("OpenAI Whisper transcription failed")
         raise HTTPException(status_code=500, detail=f"Transcription failed: {exc}") from exc
+    if not transcribed:
+        raise HTTPException(status_code=422, detail="No speech detected.")
 
     # --- Build canonical comparison target ---
     compare_target: str = expected_text  # fallback when verifier not populated
@@ -400,35 +398,35 @@ def _generate_memorization_tips(
     wrong_words: list[str],
     reference: str,
 ) -> list[str]:
-    """Return 2–4 Arabic memorization improvement tips based on error analysis.
+    """Return 2â€“4 Arabic memorization improvement tips based on error analysis.
 
     Rule-based (no LLM call) so it is fast, free, and always available.
     """
     tips: list[str] = []
 
     if score >= 0.9:
-        tips.append("أداء رائع! استمر في مراجعة الآية يومياً للحفاظ على حفظك.")
+        tips.append("Ø£Ø¯Ø§Ø¡ Ø±Ø§Ø¦Ø¹! Ø§Ø³ØªÙ…Ø± ÙÙŠ Ù…Ø±Ø§Ø¬Ø¹Ø© Ø§Ù„Ø¢ÙŠØ© ÙŠÙˆÙ…ÙŠØ§Ù‹ Ù„Ù„Ø­ÙØ§Ø¸ Ø¹Ù„Ù‰ Ø­ÙØ¸Ùƒ.")
     elif score >= 0.7:
-        tips.append(f"حفظ جيد! ركّز على المواضع التي أخطأت فيها وراجعها من المصحف.")
+        tips.append(f"Ø­ÙØ¸ Ø¬ÙŠØ¯! Ø±ÙƒÙ‘Ø² Ø¹Ù„Ù‰ Ø§Ù„Ù…ÙˆØ§Ø¶Ø¹ Ø§Ù„ØªÙŠ Ø£Ø®Ø·Ø£Øª ÙÙŠÙ‡Ø§ ÙˆØ±Ø§Ø¬Ø¹Ù‡Ø§ Ù…Ù† Ø§Ù„Ù…ØµØ­Ù.")
     else:
-        tips.append(f"راجع الآية {reference} من المصحف عدة مرات قبل إعادة التسجيل.")
+        tips.append(f"Ø±Ø§Ø¬Ø¹ Ø§Ù„Ø¢ÙŠØ© {reference} Ù…Ù† Ø§Ù„Ù…ØµØ­Ù Ø¹Ø¯Ø© Ù…Ø±Ø§Øª Ù‚Ø¨Ù„ Ø¥Ø¹Ø§Ø¯Ø© Ø§Ù„ØªØ³Ø¬ÙŠÙ„.")
 
     if missing_words:
-        sample = "، ".join(missing_words[:5])
-        tips.append(f"الكلمات الناقصة التي تحتاج إلى مراجعة: {sample}.")
+        sample = "ØŒ ".join(missing_words[:5])
+        tips.append(f"Ø§Ù„ÙƒÙ„Ù…Ø§Øª Ø§Ù„Ù†Ø§Ù‚ØµØ© Ø§Ù„ØªÙŠ ØªØ­ØªØ§Ø¬ Ø¥Ù„Ù‰ Ù…Ø±Ø§Ø¬Ø¹Ø©: {sample}.")
 
     if wrong_words:
-        tips.append("انتبه لدقة نطق الكلمات وتأكد من مطابقتها للنص القرآني الصحيح.")
+        tips.append("Ø§Ù†ØªØ¨Ù‡ Ù„Ø¯Ù‚Ø© Ù†Ø·Ù‚ Ø§Ù„ÙƒÙ„Ù…Ø§Øª ÙˆØªØ£ÙƒØ¯ Ù…Ù† Ù…Ø·Ø§Ø¨Ù‚ØªÙ‡Ø§ Ù„Ù„Ù†Øµ Ø§Ù„Ù‚Ø±Ø¢Ù†ÙŠ Ø§Ù„ØµØ­ÙŠØ­.")
 
     if score < 0.5:
-        tips.append("اقرأ الآية من المصحف عشر مرات ثم احفظها كلمةً بكلمة.")
+        tips.append("Ø§Ù‚Ø±Ø£ Ø§Ù„Ø¢ÙŠØ© Ù…Ù† Ø§Ù„Ù…ØµØ­Ù Ø¹Ø´Ø± Ù…Ø±Ø§Øª Ø«Ù… Ø§Ø­ÙØ¸Ù‡Ø§ ÙƒÙ„Ù…Ø©Ù‹ Ø¨ÙƒÙ„Ù…Ø©.")
     elif score < 0.8:
-        tips.append("قسّم الآية إلى أجزاء صغيرة واحفظ كل جزء منفرداً قبل ربطها معاً.")
+        tips.append("Ù‚Ø³Ù‘Ù… Ø§Ù„Ø¢ÙŠØ© Ø¥Ù„Ù‰ Ø£Ø¬Ø²Ø§Ø¡ ØµØºÙŠØ±Ø© ÙˆØ§Ø­ÙØ¸ ÙƒÙ„ Ø¬Ø²Ø¡ Ù…Ù†ÙØ±Ø¯Ø§Ù‹ Ù‚Ø¨Ù„ Ø±Ø¨Ø·Ù‡Ø§ Ù…Ø¹Ø§Ù‹.")
 
     return tips[:4]  # cap at 4 tips
 
 
-# Identification threshold: cosine distance ≤ this value is considered a match.
+# Identification threshold: cosine distance â‰¤ this value is considered a match.
 # Mirrors _MATCH_DISTANCE_THRESHOLD in QuranVerifier but kept local so the
 # endpoint can apply a slightly more generous cutoff for fragmented recitations.
 _MEMORIZATION_ID_THRESHOLD = 0.70
@@ -437,7 +435,7 @@ _MEMORIZATION_ID_THRESHOLD = 0.70
 @router.post(
     "/memorization",
     response_model=MemorizationResponse,
-    summary="Check Quran memorization — identify ayah and score word accuracy",
+    summary="Check Quran memorization â€” identify ayah and score word accuracy",
 )
 async def memorization_check(
     audio: UploadFile = File(..., description="Audio file (WAV, MP3, FLAC, OGG, WebM)"),
@@ -447,7 +445,7 @@ async def memorization_check(
     Workflow:
     1. Transcribe the audio with the Quranic Whisper ASR model.
     2. Use ``QuranVerifier.find_closest_ayah()`` to find the closest canonical
-       ayah (cosine distance ≤ 0.70 is accepted).
+       ayah (cosine distance â‰¤ 0.70 is accepted).
     3. If identified: compare word-by-word against the canonical text and
        return the memorization score, missing/wrong words, and Arabic tips.
     4. If not identified: return ``identified=False`` with bilingual guidance.
@@ -481,20 +479,14 @@ async def memorization_check(
             detail="No speech detected in the audio. Please record your recitation and try again.",
         )
 
-    # --- Transcribe ---
+    # --- Transcribe via OpenAI Whisper API ---
     try:
-        asr = _get_pipeline()
-        result = asr({"raw": audio_array, "sampling_rate": 16000})
-        transcribed = result["text"].strip()
-    except IndexError as exc:
-        logger.warning("ASR IndexError in /memorization — likely silent audio: %s", exc)
-        raise HTTPException(
-            status_code=422,
-            detail="No speech detected. Please record your recitation and try again.",
-        ) from exc
+        transcribed = await _transcribe_with_openai(audio_array)
     except Exception as exc:
-        logger.exception("ASR inference failed in /memorization")
+        logger.exception("OpenAI Whisper transcription failed")
         raise HTTPException(status_code=500, detail=f"Transcription failed: {exc}") from exc
+    if not transcribed:
+        raise HTTPException(status_code=422, detail="No speech detected.")
 
     # --- Identify ayah ---
     verifier = _get_verifier()
@@ -523,7 +515,7 @@ async def memorization_check(
         )
         return MemorizationResponse(
             identified=False,
-            message_ar="لم يتم التعرف على الآية، حاول مرة أخرى",
+            message_ar="Ù„Ù… ÙŠØªÙ… Ø§Ù„ØªØ¹Ø±Ù Ø¹Ù„Ù‰ Ø§Ù„Ø¢ÙŠØ©ØŒ Ø­Ø§ÙˆÙ„ Ù…Ø±Ø© Ø£Ø®Ø±Ù‰",
             message_en="Could not identify the ayah, please try again",
         )
 
@@ -538,9 +530,9 @@ async def memorization_check(
     missing_words: list[str] = [
         e.expected for e in errors if e.type == "missing_word"
     ]
-    # Format substitutions as "expected←got" so the frontend can split on ←
+    # Format substitutions as "expectedâ†got" so the frontend can split on â†
     wrong_words: list[str] = [
-        f"{e.expected}←{e.got}" for e in errors if e.type == "substitution"
+        f"{e.expected}â†{e.got}" for e in errors if e.type == "substitution"
     ]
 
     tips = _generate_memorization_tips(
@@ -581,17 +573,17 @@ Errors detected: {errors}
 Instructions:
 - Analyse the student's performance honestly but encouragingly.
 - Explain each error type and why it matters for correct recitation.
-- Give 3–5 specific, actionable improvement tips.
+- Give 3â€“5 specific, actionable improvement tips.
 - Suggest a practice routine.
-- Assign a letter grade: A (≥90%), B (≥75%), C (≥60%), D (≥40%), F (<40%).
+- Assign a letter grade: A (â‰¥90%), B (â‰¥75%), C (â‰¥60%), D (â‰¥40%), F (<40%).
 - Respond in {language}.
 
 Return a JSON object with exactly these keys:
   "grade":     letter grade string (A/B/C/D/F)
-  "overall":   paragraph — overall assessment of the recitation
-  "error_analysis": paragraph — analysis of specific errors
-  "tips":      array of 3–5 actionable tip strings
-  "practice":  paragraph — suggested practice routine
+  "overall":   paragraph â€” overall assessment of the recitation
+  "error_analysis": paragraph â€” analysis of specific errors
+  "tips":      array of 3â€“5 actionable tip strings
+  "practice":  paragraph â€” suggested practice routine
 
 Return only valid JSON, no markdown fences."""
 
@@ -654,7 +646,7 @@ async def recitation_report(request: ReportRequest) -> Any:
     try:
         data = json.loads(raw)
         return ReportResponse(
-            grade=data.get("grade", "—"),
+            grade=data.get("grade", "â€”"),
             overall=data.get("overall", ""),
             error_analysis=data.get("error_analysis", ""),
             tips=data.get("tips", []),
@@ -663,7 +655,7 @@ async def recitation_report(request: ReportRequest) -> Any:
     except json.JSONDecodeError:
         logger.warning("GPT-4o returned non-JSON for report; raw: %.300s", raw)
         return ReportResponse(
-            grade="—",
+            grade="â€”",
             overall=raw[:800],
             error_analysis="",
             tips=[],
