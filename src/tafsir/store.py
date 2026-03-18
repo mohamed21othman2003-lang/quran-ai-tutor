@@ -87,8 +87,12 @@ class TafsirStore:
     """
 
     def __init__(self) -> None:
+        # Use 256-dim embeddings (text-embedding-3-small supports dimensional
+        # reduction) — 6× smaller vectors vs the default 1536 dims, keeping
+        # disk usage well under Railway's Volume limit.
         self._embeddings = OpenAIEmbeddings(
             model="text-embedding-3-small",
+            dimensions=256,
             openai_api_key=settings.openai_api_key,
         )
         self._store: Chroma | None = None
@@ -149,17 +153,21 @@ class TafsirStore:
 
         Returns the total number of chunks successfully embedded.
         """
-        # --- Skip if collection already contains documents ---
-        # If opening the existing collection fails (e.g. compaction / WAL error),
-        # auto-wipe the directory and start fresh so callers don't need a manual reset.
+        # --- Skip if collection already contains documents (healthy state) ---
+        # If opening fails (compaction / WAL / disk-full error), wipe and rebuild.
         try:
-            if self.is_populated():
-                count = self._get_store()._collection.count()
+            store_ok = self._get_store()
+            count = store_ok._collection.count()
+            if count > 0:
                 logger.info(
                     "Tafsir collection already populated (%d chunks) — skipping ingestion.",
                     count,
                 )
                 return count
+            # Empty collection — wipe any stale files before rebuilding
+            logger.info("Tafsir collection exists but is empty — wiping and rebuilding.")
+            self._store = None
+            self._wipe_dir_contents()
         except Exception as exc:
             logger.warning(
                 "Existing tafsir collection unreadable (%s) — wiping and rebuilding.", exc
