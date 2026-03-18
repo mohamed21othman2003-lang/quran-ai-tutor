@@ -24,7 +24,8 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import BackgroundTasks, FastAPI, Header, HTTPException
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -319,6 +320,11 @@ class TafsirIngestResponse(BaseModel):
     chunks_indexed: int   # 0 unless semantic embedding is explicitly triggered
 
 
+# Shared state for the long-running tafsir semantic ingest background task.
+# Keys: "status" ("idle"|"running"|"done"|"error"), "chunks", "error"
+_tafsir_ingest_state: dict = {"status": "idle", "chunks": 0, "error": ""}
+
+
 @app.post(
     "/api/v1/admin/ingest-tafsir",
     response_model=TafsirIngestResponse,
@@ -362,47 +368,85 @@ async def ingest_tafsir(x_admin_key: str = Header(..., alias="X-Admin-Key")) -> 
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@app.post(
-    "/api/v1/admin/ingest-tafsir-semantic",
-    response_model=TafsirIngestResponse,
-    summary="Build ChromaDB semantic index for tafsir (slow, costs OpenAI tokens)",
-    tags=["Admin"],
-)
-async def ingest_tafsir_semantic(
-    x_admin_key: str = Header(..., alias="X-Admin-Key"),
-) -> Any:
-    """Embed Ibn Kathir + Al-Tabari commentary into the ``tafsir_knowledge``
-    ChromaDB collection for semantic (cosine) search.
+def _run_tafsir_semantic_ingest() -> None:
+    """Background worker for tafsir semantic ingestion.
 
-    **Prerequisites**: ``POST /api/v1/admin/ingest-tafsir`` must be run first
-    to download ``tafaseer.db``.
-
-    **Cost / time**: ~12 472 rows × long texts → tens of thousands of chunks.
-    Uses batches of 100 with 2-second pauses to stay within OpenAI 1M TPM.
-    Ingestion is skipped automatically if the collection is already populated.
-
-    Requires the ``X-Admin-Key`` header.
+    Runs in a thread-pool executor so the HTTP response is returned immediately
+    (202 Accepted) and Railway's ~5-minute request timeout is not a concern.
+    Updates ``_tafsir_ingest_state`` so callers can poll
+    ``GET /api/v1/admin/tafsir-ingest-status``.
     """
-    if x_admin_key != settings.admin_api_key:
-        raise HTTPException(status_code=403, detail="Invalid admin key.")
+    global _tafsir_ingest_state
+    _tafsir_ingest_state = {"status": "running", "chunks": 0, "error": ""}
     try:
         from src.tafsir.database import ensure_database
         from src.tafsir.store import TafsirStore
 
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, ensure_database)
-
+        ensure_database()
         store = TafsirStore()
-        chunks = await loop.run_in_executor(None, store.build_collection)
-        return TafsirIngestResponse(
-            message="Tafsir semantic index built." if chunks else
-                    "Tafsir semantic index already populated — nothing to do.",
-            db_size_mb=0.0,
-            chunks_indexed=chunks,
-        )
+        chunks = store.build_collection()
+        _tafsir_ingest_state = {"status": "done", "chunks": chunks, "error": ""}
+        logger.info("Background tafsir ingest complete: %d chunks.", chunks)
     except Exception as exc:
-        logger.exception("Error in /admin/ingest-tafsir-semantic")
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        logger.exception("Background tafsir ingest failed")
+        _tafsir_ingest_state = {"status": "error", "chunks": 0, "error": str(exc)}
+
+
+@app.post(
+    "/api/v1/admin/ingest-tafsir-semantic",
+    summary="Build ChromaDB semantic index for tafsir (async — returns 202 immediately)",
+    tags=["Admin"],
+    status_code=202,
+)
+async def ingest_tafsir_semantic(
+    background_tasks: BackgroundTasks,
+    x_admin_key: str = Header(..., alias="X-Admin-Key"),
+) -> Any:
+    """Start background embedding of Ibn Kathir + Al-Tabari commentary.
+
+    Returns **202 Accepted** immediately.  Poll
+    ``GET /api/v1/admin/tafsir-ingest-status`` to track progress.
+
+    **Prerequisites**: ``POST /api/v1/admin/ingest-tafsir`` must be run first.
+    Ingestion is skipped automatically if the collection is already populated.
+    """
+    if x_admin_key != settings.admin_api_key:
+        raise HTTPException(status_code=403, detail="Invalid admin key.")
+
+    if _tafsir_ingest_state.get("status") == "running":
+        return JSONResponse(
+            status_code=202,
+            content={"message": "Ingest already running. Poll /admin/tafsir-ingest-status."},
+        )
+
+    loop = asyncio.get_running_loop()
+    background_tasks.add_task(
+        loop.run_in_executor, None, _run_tafsir_semantic_ingest
+    )
+    return JSONResponse(
+        status_code=202,
+        content={
+            "message": "Tafsir semantic ingest started in background. "
+                       "Poll GET /api/v1/admin/tafsir-ingest-status for progress.",
+        },
+    )
+
+
+@app.get(
+    "/api/v1/admin/tafsir-ingest-status",
+    summary="Poll the tafsir semantic ingest background job status",
+    tags=["Admin"],
+)
+async def tafsir_ingest_status(
+    x_admin_key: str = Header(..., alias="X-Admin-Key"),
+) -> Any:
+    """Return the current status of the tafsir semantic ingest job.
+
+    Possible ``status`` values: ``idle``, ``running``, ``done``, ``error``.
+    """
+    if x_admin_key != settings.admin_api_key:
+        raise HTTPException(status_code=403, detail="Invalid admin key.")
+    return _tafsir_ingest_state
 
 
 @app.delete(
