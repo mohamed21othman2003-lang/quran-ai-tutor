@@ -2052,71 +2052,70 @@ const t = k => i18n[lang][k] || k;
 
 function applyI18n() {
   const $ = id => document.getElementById(id);
-  $('app-title').textContent    = t('appTitle');
-  $('auth-title').textContent   = t('appTitle');
-  $('auth-sub').textContent     = t('authSub');
-  $('lbl-login-tab').textContent   = t('loginTab');
-  $('lbl-register-tab').textContent = t('registerTab');
-  $('lbl-username-l').textContent  = t('usernameL');
-  $('lbl-password-l').textContent  = t('passwordL');
-  $('lbl-username-r').textContent  = t('usernameR');
-  $('lbl-password-r').textContent  = t('passwordR');
-  $('lbl-confirm-r').textContent   = t('confirmR');
-  $('lbl-login-btn').textContent   = t('loginBtn');
-  $('lbl-reg-btn').textContent     = t('regBtn');
-  $('lbl-logout').textContent      = t('logout');
-  $('lbl-chat').textContent     = t('chat');
-  $('lbl-rules').textContent    = t('rules');
-  $('lbl-quiz').textContent     = t('quiz');
-  $('lbl-progress').textContent = t('progress');
-  $('welcome-title').textContent = t('welcomeTitle');
-  $('welcome-sub').textContent   = t('welcomeSub');
-  $('chat-input').placeholder    = t('placeholder');
-  $('chat-input').classList.toggle('ar', lang === 'ar');
-  $('rules-heading').textContent = t('rulesHeading');
-  $('rules-sub').textContent     = t('rulesSub');
-  $('rules-btn-lbl').textContent = t('loadRules');
-  $('rules-empty').textContent   = t('rulesEmpty');
-  $('quiz-rule-lbl').textContent = t('quizRuleLbl');
-  $('quiz-lang-lbl').textContent = t('quizLangLbl');
-  $('quiz-btn-lbl').textContent  = t('generate');
-  $('quiz-rule-input').placeholder = t('quizPlaceholder');
-  $('prog-title').textContent    = t('progTitle');
-  $('prog-sub').textContent      = t('progSub');
-  $('stat-lbl').textContent      = t('sessions');
-  $('prog-weak-title').textContent = t('weakTitle');
-  $('prog-hist-title').textContent = t('histTitle');
-  $('prog-empty').textContent    = t('progEmpty');
-  $('lbl-voice').textContent     = t('voice');
-  $('lbl-demo').textContent      = t('demo');
-  $('demo-heading').textContent  = t('demoHeading');
-  $('demo-sub').textContent      = t('demoSub');
-  $('demo-search-title').textContent = t('demoSearchTitle');
-  $('demo-search-desc').textContent  = t('demoSearchDesc');
-  $('demo-detect-title').textContent = t('demoDetectTitle');
-  $('demo-detect-desc').textContent  = t('demoDetectDesc');
-  $('demo-report-title').textContent = t('demoReportTitle');
-  $('demo-report-desc').textContent  = t('demoReportDesc');
-  $('search-btn-lbl').textContent    = t('searchBtn');
-  $('search-topk-lbl').textContent   = t('searchResults');
-  $('detect-btn-lbl').textContent    = t('detectBtn');
-  $('report-transcribed-lbl').textContent = t('reportTranscribedLbl');
-  $('report-expected-lbl').textContent    = t('reportExpectedLbl');
-  $('report-score-lbl').innerHTML = t('reportScoreLbl') + ': <span id="report-score-val">' +
-    (document.getElementById('report-score')?.value || '70') + '</span>%';
-  $('report-btn-lbl').textContent  = t('reportBtn');
-  $('app-sub').textContent             = t('appSub');
-  $('voice-heading').textContent       = t('voiceHeading');
-  $('voice-sub').textContent           = t('voiceSub');
-  $('voice-expected-lbl').textContent  = t('voiceExpectedLbl');
-  $('voice-hint').textContent          = t('voiceHint');
-  $('transcribed-lbl').textContent     = t('transcribedLbl');
-  $('expected-out-lbl').textContent    = t('expectedOutLbl');
-  $('errors-title').textContent        = t('errorsTitle');
-  $('quran-ref-sub').textContent       = t('quranRefSub');
-  $('mismatch-title-lbl').textContent  = t('mismatchTitle');
-  $('qt-correct-lbl').textContent      = t('qtCorrect');
-  $('qt-recited-lbl').textContent      = t('qtRecited');
+  { const _el = $('app-title'); if (_el) _el.textContent = t('appTitle'); }
+  { const _el = $('auth-title'); if (_el) _el.textContent = t('appTitle'); }
+  { const _el = $('auth-sub'); if (_el) _el.textContent = t('authSub'); }
+  { const _el = $('lbl-login-tab'); if (_el) _el.textContent = t('loginTab'); }
+  { const _el = $('lbl-register-tab'); if (_el) _el.textContent = t('registerTab'); }
+  { const _el = $('lbl-username-l'); if (_el) _el.textContent = t('usernameL'); }
+  { const _el = $('lbl-password-l'); if (_el) _el.textContent = t('passwordL'); }
+  { const _el = $('lbl-username-r'); if (_el) _el.textContent = t('usernameR'); }
+  { const _el = $('lbl-password-r'); if (_el) _el.textContent = t('passwordR'); }
+  { const _el = $('lbl-confirm-r'); if (_el) _el.textContent = t('confirmR'); }
+  { const _el = $('lbl-login-btn'); if (_el) _el.textContent = t('loginBtn'); }
+  { const _el = $('lbl-reg-btn'); if (_el) _el.textContent = t('regBtn'); }
+  { const _el = $('lbl-logout'); if (_el) _el.textContent = t('logout'); }
+  { const _el = $('lbl-chat'); if (_el) _el.textContent = t('chat'); }
+  { const _el = $('lbl-rules'); if (_el) _el.textContent = t('rules'); }
+  { const _el = $('lbl-quiz'); if (_el) _el.textContent = t('quiz'); }
+  { const _el = $('lbl-progress'); if (_el) _el.textContent = t('progress'); }
+  { const _el = $('welcome-title'); if (_el) _el.textContent = t('welcomeTitle'); }
+  { const _el = $('welcome-sub'); if (_el) _el.textContent = t('welcomeSub'); }
+  { const _el = $('chat-input'); if (_el) _el.placeholder = t('placeholder'); }
+  { const _el = $('chat-input'); if (_el) _el.classList.toggle('ar', lang === 'ar'); }
+  { const _el = $('rules-heading'); if (_el) _el.textContent = t('rulesHeading'); }
+  { const _el = $('rules-sub'); if (_el) _el.textContent = t('rulesSub'); }
+  { const _el = $('rules-btn-lbl'); if (_el) _el.textContent = t('loadRules'); }
+  { const _el = $('rules-empty'); if (_el) _el.textContent = t('rulesEmpty'); }
+  { const _el = $('quiz-rule-lbl'); if (_el) _el.textContent = t('quizRuleLbl'); }
+  { const _el = $('quiz-lang-lbl'); if (_el) _el.textContent = t('quizLangLbl'); }
+  { const _el = $('quiz-btn-lbl'); if (_el) _el.textContent = t('generate'); }
+  { const _el = $('quiz-rule-input'); if (_el) _el.placeholder = t('quizPlaceholder'); }
+  { const _el = $('prog-title'); if (_el) _el.textContent = t('progTitle'); }
+  { const _el = $('prog-sub'); if (_el) _el.textContent = t('progSub'); }
+  { const _el = $('stat-lbl'); if (_el) _el.textContent = t('sessions'); }
+  { const _el = $('prog-weak-title'); if (_el) _el.textContent = t('weakTitle'); }
+  { const _el = $('prog-hist-title'); if (_el) _el.textContent = t('histTitle'); }
+  { const _el = $('prog-empty'); if (_el) _el.textContent = t('progEmpty'); }
+  { const _el = $('lbl-voice'); if (_el) _el.textContent = t('voice'); }
+  { const _el = $('lbl-demo'); if (_el) _el.textContent = t('demo'); }
+  { const _el = $('demo-heading'); if (_el) _el.textContent = t('demoHeading'); }
+  { const _el = $('demo-sub'); if (_el) _el.textContent = t('demoSub'); }
+  { const _el = $('demo-search-title'); if (_el) _el.textContent = t('demoSearchTitle'); }
+  { const _el = $('demo-search-desc'); if (_el) _el.textContent = t('demoSearchDesc'); }
+  { const _el = $('demo-detect-title'); if (_el) _el.textContent = t('demoDetectTitle'); }
+  { const _el = $('demo-detect-desc'); if (_el) _el.textContent = t('demoDetectDesc'); }
+  { const _el = $('demo-report-title'); if (_el) _el.textContent = t('demoReportTitle'); }
+  { const _el = $('demo-report-desc'); if (_el) _el.textContent = t('demoReportDesc'); }
+  { const _el = $('search-btn-lbl'); if (_el) _el.textContent = t('searchBtn'); }
+  { const _el = $('search-topk-lbl'); if (_el) _el.textContent = t('searchResults'); }
+  { const _el = $('detect-btn-lbl'); if (_el) _el.textContent = t('detectBtn'); }
+  { const _el = $('report-transcribed-lbl'); if (_el) _el.textContent = t('reportTranscribedLbl'); }
+  { const _el = $('report-expected-lbl'); if (_el) _el.textContent = t('reportExpectedLbl'); }
+  { const _el = $('report-score-lbl'); if (_el) _el.innerHTML = t('reportScoreLbl') + ': <span id="report-score-val">' + (document.getElementById('report-score')?.value || '70') + '</span>%'; }
+  { const _el = $('report-btn-lbl'); if (_el) _el.textContent = t('reportBtn'); }
+  { const _el = $('app-sub'); if (_el) _el.textContent = t('appSub'); }
+  { const _el = $('voice-heading'); if (_el) _el.textContent = t('voiceHeading'); }
+  { const _el = $('voice-sub'); if (_el) _el.textContent = t('voiceSub'); }
+  { const _el = $('voice-expected-lbl'); if (_el) _el.textContent = t('voiceExpectedLbl'); }
+  { const _el = $('voice-hint'); if (_el) _el.textContent = t('voiceHint'); }
+  { const _el = $('transcribed-lbl'); if (_el) _el.textContent = t('transcribedLbl'); }
+  { const _el = $('expected-out-lbl'); if (_el) _el.textContent = t('expectedOutLbl'); }
+  { const _el = $('errors-title'); if (_el) _el.textContent = t('errorsTitle'); }
+  { const _el = $('quran-ref-sub'); if (_el) _el.textContent = t('quranRefSub'); }
+  { const _el = $('mismatch-title-lbl'); if (_el) _el.textContent = t('mismatchTitle'); }
+  { const _el = $('qt-correct-lbl'); if (_el) _el.textContent = t('qtCorrect'); }
+  { const _el = $('qt-recited-lbl'); if (_el) _el.textContent = t('qtRecited'); }
   const sqEl = $('search-query');
   if (sqEl) sqEl.placeholder = t('searchPlaceholder');
   // Reset status label to idle text if not currently recording
@@ -2126,17 +2125,17 @@ function applyI18n() {
   }
 
   // Memorization tab
-  $('lbl-memorization').textContent      = t('memorization');
-  $('mem-heading').textContent           = t('memHeading');
-  $('mem-sub').textContent               = t('memSub');
-  $('mem-instruction').textContent       = t('memInstruction');
-  $('mem-score-tag').textContent         = t('memScoreLbl');
-  $('mem-canonical-lbl').textContent     = t('memCanonicalLbl');
-  $('mem-missing-lbl').textContent       = t('memMissingLbl');
-  $('mem-wrong-lbl').textContent         = t('memWrongLbl');
-  $('mem-tips-lbl').textContent          = t('memTipsLbl');
-  $('mem-nf-ar').textContent             = t('memNfAr');
-  $('mem-nf-en').textContent             = t('memNfEn');
+  { const _el = $('lbl-memorization'); if (_el) _el.textContent = t('memorization'); }
+  { const _el = $('mem-heading'); if (_el) _el.textContent = t('memHeading'); }
+  { const _el = $('mem-sub'); if (_el) _el.textContent = t('memSub'); }
+  { const _el = $('mem-instruction'); if (_el) _el.textContent = t('memInstruction'); }
+  { const _el = $('mem-score-tag'); if (_el) _el.textContent = t('memScoreLbl'); }
+  { const _el = $('mem-canonical-lbl'); if (_el) _el.textContent = t('memCanonicalLbl'); }
+  { const _el = $('mem-missing-lbl'); if (_el) _el.textContent = t('memMissingLbl'); }
+  { const _el = $('mem-wrong-lbl'); if (_el) _el.textContent = t('memWrongLbl'); }
+  { const _el = $('mem-tips-lbl'); if (_el) _el.textContent = t('memTipsLbl'); }
+  { const _el = $('mem-nf-ar'); if (_el) _el.textContent = t('memNfAr'); }
+  { const _el = $('mem-nf-en'); if (_el) _el.textContent = t('memNfEn'); }
   // Reset status if idle
   const memStatusEl = $('mem-status-lbl');
   if (memStatusEl && !memStatusEl.classList.contains('recording') && !memStatusEl.classList.contains('processing')) {
@@ -2144,11 +2143,11 @@ function applyI18n() {
   }
 
   // Tafsir tab
-  $('lbl-tafsir').textContent            = t('tafsir');
-  $('tafsir-heading').textContent        = t('tafsirHeading');
-  $('tafsir-sub').textContent            = t('tafsirSub');
-  $('tafsir-btn-lbl').textContent        = t('tafsirSearchBtn');
-  $('tafsir-loading-lbl').textContent    = t('tafsirLoading');
+  { const _el = $('lbl-tafsir'); if (_el) _el.textContent = t('tafsir'); }
+  { const _el = $('tafsir-heading'); if (_el) _el.textContent = t('tafsirHeading'); }
+  { const _el = $('tafsir-sub'); if (_el) _el.textContent = t('tafsirSub'); }
+  { const _el = $('tafsir-btn-lbl'); if (_el) _el.textContent = t('tafsirSearchBtn'); }
+  { const _el = $('tafsir-loading-lbl'); if (_el) _el.textContent = t('tafsirLoading'); }
 
   // Auth inputs direction
   ['login-username','login-password','reg-username','reg-password','reg-confirm'].forEach(id => {
@@ -3158,6 +3157,8 @@ async function _onMemRecordingStop() {
       return;
     }
     const data = await res.json();
+    console.log('RAW TIPS:', JSON.stringify(data.tips));
+    console.log('RAW WRONG WORDS:', JSON.stringify(data.wrong_words));
     renderMemResult(data);
   } catch (err) {
     setMemStatus('memIdle');
