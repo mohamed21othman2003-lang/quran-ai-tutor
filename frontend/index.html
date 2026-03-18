@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en" dir="ltr">
 <head>
   <meta charset="UTF-8" />
@@ -3052,11 +3052,7 @@ async function runReport() {
       </div>`;
 
     if (data.tips && data.tips.length) {
-      html += `<div class="report-section"><div class="report-section-title">${t('reportTips')}</div>`;
-      data.tips.forEach((tip, i) => {
-        html += `<div class="report-tip"><span class="tip-num">${i+1}</span><span>${tip}</span></div>`;
-      });
-      html += `</div>`;
+      html += `<div class="report-section"><div class="report-section-title">${t('reportTips')}</div><div id="_report-tips-mount"></div></div>`;
     }
 
     if (data.practice) html += `
@@ -3069,6 +3065,24 @@ async function runReport() {
     </div>`;
 
     box.innerHTML = html;
+    // Render tips via textContent to preserve Arabic Unicode correctly
+    if (data.tips && data.tips.length) {
+      const mount = document.getElementById('_report-tips-mount');
+      if (mount) {
+        data.tips.forEach((tip, i) => {
+          const row = document.createElement('div');
+          row.className = 'report-tip';
+          const num = document.createElement('span');
+          num.className = 'tip-num';
+          num.textContent = i + 1;
+          const text = document.createElement('span');
+          text.textContent = tip;
+          row.appendChild(num);
+          row.appendChild(text);
+          mount.appendChild(row);
+        });
+      }
+    }
   } catch (err) {
     box.innerHTML = `<div class="empty-state">⚠️ ${err.message || t('errorApi')}</div>`;
   } finally {
@@ -3240,7 +3254,13 @@ function renderMemResult(data) {
   (data.tips || []).forEach((tip, i) => {
     const row = document.createElement('div');
     row.className = 'mem-tip-item';
-    row.innerHTML = `<span class="mem-tip-num">${i + 1}</span><span>${tip}</span>`;
+    const num = document.createElement('span');
+    num.className = 'mem-tip-num';
+    num.textContent = i + 1;
+    const text = document.createElement('span');
+    text.textContent = tip;
+    row.appendChild(num);
+    row.appendChild(text);
     tipsList.appendChild(row);
   });
 
