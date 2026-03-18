@@ -289,3 +289,35 @@ class TafsirStore:
         except Exception:
             logger.exception("Tafsir retrieval failed for query: %.80s", query)
             return []
+
+    def reset_collection(self) -> None:
+        """Delete the ChromaDB collection and reset the in-memory handle.
+
+        Useful when the on-disk collection is corrupted (e.g. compaction errors).
+        After calling this, run ``build_collection()`` to rebuild the index.
+        """
+        import chromadb
+        try:
+            client = chromadb.PersistentClient(path=self._chroma_dir)
+            client.delete_collection(COLLECTION_NAME)
+            logger.info("Deleted ChromaDB collection '%s'.", COLLECTION_NAME)
+        except Exception as exc:
+            logger.warning("Could not delete collection '%s': %s", COLLECTION_NAME, exc)
+        finally:
+            # Reset the cached store so the next call recreates it cleanly
+            self._store = None
+
+
+# ------------------------------------------------------------------
+# Module-level singleton
+# ------------------------------------------------------------------
+
+_tafsir_store: TafsirStore | None = None
+
+
+def get_tafsir_store() -> TafsirStore:
+    """Return the shared ``TafsirStore`` singleton (created on first call)."""
+    global _tafsir_store
+    if _tafsir_store is None:
+        _tafsir_store = TafsirStore()
+    return _tafsir_store

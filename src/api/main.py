@@ -1,4 +1,4 @@
-"""FastAPI application — Quran AI Tutor MVP.
+﻿"""FastAPI application — Quran AI Tutor MVP.
 
 Endpoints
 ---------
@@ -402,6 +402,41 @@ async def ingest_tafsir_semantic(
         )
     except Exception as exc:
         logger.exception("Error in /admin/ingest-tafsir-semantic")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.delete(
+    "/api/v1/admin/reset-tafsir-index",
+    summary="Delete the tafsir ChromaDB collection (fixes compaction errors)",
+    tags=["Admin"],
+)
+async def reset_tafsir_index(
+    x_admin_key: str = Header(..., alias="X-Admin-Key"),
+) -> Any:
+    """Delete the ``tafsir_knowledge`` ChromaDB collection and reset the
+    in-memory handle.
+
+    Use this when ``ingest-tafsir-semantic`` fails with a compaction or
+    metadata-segment error.  After resetting, call
+    ``POST /api/v1/admin/ingest-tafsir-semantic`` to rebuild the index.
+
+    Requires the ``X-Admin-Key`` header.
+    """
+    if x_admin_key != settings.admin_api_key:
+        raise HTTPException(status_code=403, detail="Invalid admin key.")
+    try:
+        from src.tafsir.store import get_tafsir_store
+        loop = asyncio.get_running_loop()
+        store = get_tafsir_store()
+        await loop.run_in_executor(None, store.reset_collection)
+        return {
+            "message": (
+                "Tafsir index reset successfully. "
+                "Run POST /api/v1/admin/ingest-tafsir-semantic to rebuild."
+            )
+        }
+    except Exception as exc:
+        logger.exception("Error in /admin/reset-tafsir-index")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
