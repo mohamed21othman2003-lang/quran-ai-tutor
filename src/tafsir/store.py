@@ -1,19 +1,24 @@
-"""ChromaDB-backed semantic search layer for tafseer content.
+"""FAISS-backed semantic search layer for tafseer content.
 
-Follows the same patterns as ``src/rag/pipeline.py`` and
-``src/rag/quran_verifier.py``:
-  - Lazy-loaded ``Chroma`` store via ``_get_store()``
-  - ``is_populated()`` guard before any search
-  - ``build_collection()`` called from the admin endpoint only
+Replaces the earlier ChromaDB implementation which suffered from persistent
+"no such table: tenants/acquire_write" errors on Railway when creating a
+fresh database after a wipe.
+
+FAISS advantages over ChromaDB for this use-case:
+  - No SQLite / WAL / migration issues — just two files (index.faiss + index.pkl)
+  - Clean overwrite: delete files, write new ones, done.
+  - Fast in-memory search; index loaded once per process.
+
+Index is stored under ``settings.tafsir_chroma_dir`` (reusing the same env var
+so no config change is needed):
+  <tafsir_chroma_dir>/
+    index.faiss   — FAISS vector index
+    index.pkl     — serialised docstore + id_to_docstore_id mapping
 
 Collection: ``tafsir_knowledge``
 Metadata keys per document: source, source_ar, tafseer_id, surah, ayah, reference
 
 Ingestion scope: Ibn Kathir (ID=2) + Al-Tabari (ID=1) only = ~12 472 rows.
-Because each row can be tens of thousands of chars, the total chunk count
-is much higher. At EMBED_BATCH=100 with a 2-second inter-batch pause and a
-60-second back-off on HTTP 429, the ingestion runs safely within OpenAI's
-1M TPM rate limit.
 """
 
 import logging
@@ -23,7 +28,6 @@ import time
 from pathlib import Path
 from typing import Any
 
-from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
 
@@ -32,18 +36,16 @@ from src.tafsir.database import iter_all_tafsir
 
 logger = logging.getLogger(__name__)
 
-COLLECTION_NAME = "tafsir_knowledge"
+# --- Rate-limit-safe ingestion tunables ---
+EMBED_BATCH = 200          # documents sent to OpenAI per embedding call
+BATCH_SLEEP_S = 2          # seconds to pause between every batch
+RATE_LIMIT_SLEEP_S = 60    # seconds to back off after an HTTP 429
+PROGRESS_LOG_EVERY = 1000  # emit a progress line every N documents embedded
 
 # Tafsir commentary is verbose; chunk to stay within embedding token limits
 # while preserving enough context for meaningful similarity search.
 _CHUNK_CHARS = 800
 _CHUNK_OVERLAP = 80
-
-# --- Rate-limit-safe ingestion tunables ---
-EMBED_BATCH = 100          # documents sent to OpenAI per embedding call
-BATCH_SLEEP_S = 2          # seconds to pause between every batch
-RATE_LIMIT_SLEEP_S = 60    # seconds to back off after an HTTP 429
-PROGRESS_LOG_EVERY = 500   # emit a progress line every N documents embedded
 
 
 # ------------------------------------------------------------------
@@ -51,14 +53,9 @@ PROGRESS_LOG_EVERY = 500   # emit a progress line every N documents embedded
 # ------------------------------------------------------------------
 
 def _split_text(text: str) -> list[str]:
-    """Split *text* into overlapping character-level chunks.
-
-    Tries to break on whitespace so words are not cut in the middle.
-    Single-chunk texts are returned as-is.
-    """
+    """Split *text* into overlapping character-level chunks."""
     if len(text) <= _CHUNK_CHARS:
         return [text]
-
     chunks: list[str] = []
     start = 0
     while start < len(text):
@@ -66,13 +63,11 @@ def _split_text(text: str) -> list[str]:
         if end >= len(text):
             chunks.append(text[start:])
             break
-        # Prefer splitting at the last whitespace before `end`
         boundary = text.rfind(" ", start, end)
         if boundary <= start:
             boundary = end
         chunks.append(text[start:boundary])
         start = max(0, boundary - _CHUNK_OVERLAP)
-
     return [c.strip() for c in chunks if c.strip()]
 
 
@@ -81,117 +76,96 @@ def _split_text(text: str) -> list[str]:
 # ------------------------------------------------------------------
 
 class TafsirStore:
-    """Semantic search over embedded tafseer content via ChromaDB.
+    """FAISS-backed semantic search over embedded tafseer content."""
 
-    Mirrors the interface of ``QuranVerifier`` for consistency.
-    """
+    _INDEX_NAME = "index"   # FAISS saves <name>.faiss + <name>.pkl
 
     def __init__(self) -> None:
-        # Use 256-dim embeddings (text-embedding-3-small supports dimensional
-        # reduction) — 6× smaller vectors vs the default 1536 dims, keeping
-        # disk usage well under Railway's Volume limit.
+        # Use 256-dim embeddings — 6× smaller than the default 1536 dims.
         self._embeddings = OpenAIEmbeddings(
             model="text-embedding-3-small",
             dimensions=256,
             openai_api_key=settings.openai_api_key,
         )
-        self._store: Chroma | None = None
-        # Use a dedicated persistent directory so the tafsir index survives
-        # across Railway deployments independently of the main RAG store.
-        self._chroma_dir = os.environ.get("TAFSIR_CHROMA_DIR", settings.tafsir_chroma_dir)
-        os.makedirs(self._chroma_dir, exist_ok=True)
-        os.chmod(self._chroma_dir, 0o777)
+        self._index_dir = os.environ.get("TAFSIR_CHROMA_DIR", settings.tafsir_chroma_dir)
+        os.makedirs(self._index_dir, exist_ok=True)
+        self._store = None   # lazy-loaded FAISS VectorStore
 
-    def _get_store(self) -> Chroma:
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _index_path(self) -> Path:
+        return Path(self._index_dir)
+
+    def _faiss_file(self) -> Path:
+        return self._index_path() / f"{self._INDEX_NAME}.faiss"
+
+    def _pkl_file(self) -> Path:
+        return self._index_path() / f"{self._INDEX_NAME}.pkl"
+
+    def _get_store(self):
+        """Return the loaded FAISS store (loads from disk on first call)."""
         if self._store is None:
-            self._store = Chroma(
-                collection_name=COLLECTION_NAME,
-                embedding_function=self._embeddings,
-                persist_directory=self._chroma_dir,
+            from langchain_community.vectorstores import FAISS
+            self._store = FAISS.load_local(
+                folder_path=self._index_dir,
+                embeddings=self._embeddings,
+                index_name=self._INDEX_NAME,
+                allow_dangerous_deserialization=True,
             )
         return self._store
 
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
     def is_populated(self) -> bool:
-        """Return True if the collection contains at least one document."""
-        try:
-            return self._get_store()._collection.count() > 0
-        except Exception:
-            return False
+        """Return True if the FAISS index files exist on disk."""
+        return self._faiss_file().exists() and self._pkl_file().exists()
+
+    def reset_collection(self) -> None:
+        """Delete the FAISS index files and reset the in-memory store."""
+        self._store = None
+        for f in [self._faiss_file(), self._pkl_file()]:
+            try:
+                if f.exists():
+                    f.unlink()
+                    logger.info("Deleted %s", f)
+            except Exception as exc:
+                logger.warning("Could not delete %s: %s", f, exc)
+        logger.info("Tafsir FAISS index reset.")
 
     # ------------------------------------------------------------------
     # Ingestion
     # ------------------------------------------------------------------
 
-    def _wipe_dir_contents(self) -> None:
-        """Delete all ChromaDB files inside the chroma directory.
-
-        Deletes known ChromaDB artefacts (SQLite, WAL, SHM, UUID subdirs)
-        without removing the directory itself — Railway may rely on the
-        directory being present as a Volume sub-path.
-
-        A short sleep after deletion lets the filesystem fully sync before
-        ChromaDB creates a fresh database.
-        """
-        chroma_path = Path(self._chroma_dir)
-        if not chroma_path.exists():
-            chroma_path.mkdir(parents=True, exist_ok=True)
-            os.chmod(self._chroma_dir, 0o777)
-            return
-
-        removed = 0
-        for item in list(chroma_path.iterdir()):
-            try:
-                if item.is_dir():
-                    shutil.rmtree(item)
-                else:
-                    item.unlink()
-                removed += 1
-            except Exception as exc:
-                logger.warning("Could not remove %s: %s", item, exc)
-
-        os.chmod(self._chroma_dir, 0o777)
-        logger.info("Wiped %d items from %s", removed, self._chroma_dir)
-        time.sleep(1)   # allow filesystem to settle before ChromaDB reinitialises
-
     def build_collection(self) -> int:
-        """Embed Ibn Kathir + Al-Tabari tafsir into the ``tafsir_knowledge`` collection.
+        """Embed Ibn Kathir + Al-Tabari tafsir into a FAISS index.
 
         Strategy
         --------
-        1. Stream all rows from ``iter_all_tafsir()`` (IDs 1 + 2, ~12 472 rows),
-           split each into 800-char chunks, and collect them into a flat list.
-        2. Send chunks to OpenAI in small batches of ``EMBED_BATCH`` (100) so we
-           stay well below the 1M-token-per-minute rate limit.
-        3. Sleep ``BATCH_SLEEP_S`` (2 s) between every batch.
-        4. On HTTP 429 / RateLimitError, sleep ``RATE_LIMIT_SLEEP_S`` (60 s)
-           and retry the same batch once before re-raising.
-        5. Log a progress line every ``PROGRESS_LOG_EVERY`` (500) documents.
+        1. If index files already exist → skip (already populated).
+        2. Stream all rows from ``iter_all_tafsir()``, split into 800-char chunks.
+        3. Embed in batches of ``EMBED_BATCH`` (200) to stay within OpenAI TPM limits.
+        4. Sleep ``BATCH_SLEEP_S`` between batches; back off 60 s on HTTP 429.
+        5. After the last batch, save the FAISS index to disk.
 
-        Returns the total number of chunks successfully embedded.
+        Returns the total number of chunks embedded.
         """
-        # --- Skip if collection already contains documents (healthy state) ---
-        # If opening fails (compaction / WAL / disk-full error), wipe and rebuild.
-        try:
-            store_ok = self._get_store()
-            count = store_ok._collection.count()
-            if count > 0:
-                logger.info(
-                    "Tafsir collection already populated (%d chunks) — skipping ingestion.",
-                    count,
-                )
+        if self.is_populated():
+            # Load to get count
+            try:
+                store = self._get_store()
+                count = store.index.ntotal
+                logger.info("FAISS index already populated (%d vectors) — skipping.", count)
                 return count
-            # Empty collection — wipe any stale files before rebuilding
-            logger.info("Tafsir collection exists but is empty — wiping and rebuilding.")
-            self._store = None
-            self._wipe_dir_contents()
-        except Exception as exc:
-            logger.warning(
-                "Existing tafsir collection unreadable (%s) — wiping and rebuilding.", exc
-            )
-            self._store = None
-            self._wipe_dir_contents()
+            except Exception as exc:
+                logger.warning("Existing FAISS index unreadable (%s) — rebuilding.", exc)
+                self._store = None
+                self.reset_collection()
 
-        # --- Build full chunk list up-front so we know the total for logging ---
+        # --- Build full chunk list ---
         docs: list[Document] = []
         for row in iter_all_tafsir():
             for chunk in _split_text(row["text"]):
@@ -208,42 +182,36 @@ class TafsirStore:
                 ))
 
         if not docs:
-            logger.warning(
-                "No tafsir documents found to embed — is tafaseer.db downloaded?"
-            )
+            logger.warning("No tafsir documents found — is tafaseer.db downloaded?")
             return 0
 
         total = len(docs)
         total_batches = (total + EMBED_BATCH - 1) // EMBED_BATCH
         estimated_min = (total_batches * (BATCH_SLEEP_S + 1)) / 60
         logger.info(
-            "Tafsir ingestion starting: %d chunks across %d batches of %d "
-            "(~%.0f min estimated, excluding any rate-limit back-offs).",
+            "Tafsir FAISS ingest: %d chunks, %d batches of %d (~%.0f min estimated).",
             total, total_batches, EMBED_BATCH, estimated_min,
         )
 
-        persist_dir = self._chroma_dir
-        store: Chroma | None = None
+        from langchain_community.vectorstores import FAISS
+
+        faiss_store = None
         embedded = 0
 
         for i in range(0, total, EMBED_BATCH):
             batch = docs[i : i + EMBED_BATCH]
             batch_num = i // EMBED_BATCH + 1
 
-            # --- Embed with one retry on rate-limit ---
-            for attempt in range(1, 3):   # attempts 1 and 2
+            for attempt in range(1, 3):
                 try:
-                    if store is None:
-                        store = Chroma.from_documents(
+                    if faiss_store is None:
+                        faiss_store = FAISS.from_documents(
                             documents=batch,
                             embedding=self._embeddings,
-                            collection_name=COLLECTION_NAME,
-                            persist_directory=persist_dir,
                         )
                     else:
-                        store.add_documents(batch)
-                    break  # success
-
+                        faiss_store.add_documents(batch)
+                    break
                 except Exception as exc:
                     err = str(exc).lower()
                     is_rate_limit = (
@@ -252,11 +220,10 @@ class TafsirStore:
                     )
                     if attempt == 1 and is_rate_limit:
                         logger.warning(
-                            "Rate limit hit on batch %d/%d — sleeping %d s then retrying …",
+                            "Rate limit on batch %d/%d — sleeping %ds …",
                             batch_num, total_batches, RATE_LIMIT_SLEEP_S,
                         )
                         time.sleep(RATE_LIMIT_SLEEP_S)
-                        # loop continues to attempt 2
                     else:
                         logger.exception(
                             "Embedding failed on batch %d/%d (attempt %d): %s",
@@ -266,26 +233,26 @@ class TafsirStore:
 
             embedded += len(batch)
 
-            # --- Progress log every PROGRESS_LOG_EVERY documents ---
-            prev_milestone = (embedded - len(batch)) // PROGRESS_LOG_EVERY
-            curr_milestone = embedded // PROGRESS_LOG_EVERY
-            if curr_milestone > prev_milestone or embedded >= total:
+            prev_m = (embedded - len(batch)) // PROGRESS_LOG_EVERY
+            curr_m = embedded // PROGRESS_LOG_EVERY
+            if curr_m > prev_m or embedded >= total:
                 logger.info(
-                    "Tafsir ingestion progress: %d / %d chunks (%.1f%%) — "
-                    "batch %d / %d",
-                    embedded, total, embedded / total * 100,
-                    batch_num, total_batches,
+                    "FAISS ingest progress: %d / %d (%.1f%%) — batch %d / %d",
+                    embedded, total, embedded / total * 100, batch_num, total_batches,
                 )
 
-            # --- Pause between batches (skip after the last one) ---
             if i + EMBED_BATCH < total:
                 time.sleep(BATCH_SLEEP_S)
 
-        self._store = store
-        logger.info(
-            "Tafsir collection complete: %d / %d chunks embedded into '%s'.",
-            embedded, total, COLLECTION_NAME,
-        )
+        # --- Persist to disk ---
+        if faiss_store is not None:
+            faiss_store.save_local(
+                folder_path=self._index_dir,
+                index_name=self._INDEX_NAME,
+            )
+            self._store = faiss_store
+            logger.info("FAISS index saved: %d vectors → %s", embedded, self._index_dir)
+
         return embedded
 
     # ------------------------------------------------------------------
@@ -293,27 +260,20 @@ class TafsirStore:
     # ------------------------------------------------------------------
 
     def search(self, query: str, top_k: int = 5) -> list[dict[str, Any]]:
-        """Return the top-k most semantically relevant tafsir chunks for *query*.
-
-        Returns an empty list when the collection is not populated or a search
-        error occurs — callers must check ``is_populated()`` before calling if
-        they want to surface a 503 to the user.
-
-        Each result dict has keys:
-          source, source_ar, reference, surah, ayah, text, relevance (0–1)
-        """
+        """Return top-k most semantically relevant tafsir chunks for *query*."""
         if not self.is_populated():
             return []
         try:
-            raw = self._get_store().similarity_search_with_score(query, k=top_k)
+            store = self._get_store()
+            raw = store.similarity_search_with_score(query, k=top_k)
         except Exception:
-            logger.exception("Tafsir semantic search failed for query: %.80s", query)
+            logger.exception("FAISS tafsir search failed for query: %.80s", query)
             return []
 
         results: list[dict[str, Any]] = []
         for doc, distance in raw:
-            # Cosine distance ∈ [0, 2]; map to relevance ∈ [0, 1]
-            relevance = round(max(0.0, 1.0 - distance / 2.0), 3)
+            # L2 distance → relevance in [0, 1]: smaller distance = more relevant
+            relevance = round(max(0.0, 1.0 - distance / 4.0), 3)
             meta = doc.metadata
             results.append({
                 "source":    meta.get("source", ""),
@@ -327,27 +287,14 @@ class TafsirStore:
         return results
 
     def retrieve_for_agent(self, query: str, top_k: int = 3) -> list[Document]:
-        """Return top-k ``Document`` objects for use inside a LangChain chain.
-
-        Called by ``TutorAgent.answer_tafsir()`` so the existing LCEL
-        chain plumbing can be reused unchanged.
-        """
+        """Return top-k Documents for use inside a LangChain chain."""
         if not self.is_populated():
             return []
         try:
             return self._get_store().similarity_search(query, k=top_k)
         except Exception:
-            logger.exception("Tafsir retrieval failed for query: %.80s", query)
+            logger.exception("FAISS tafsir retrieval failed for query: %.80s", query)
             return []
-
-    def reset_collection(self) -> None:
-        """Wipe the ChromaDB persistence directory contents and reset in-memory state.
-
-        Keeps the directory itself (Railway Volume mount point must not be deleted).
-        After calling this, run ``build_collection()`` to rebuild the index.
-        """
-        self._store = None
-        self._wipe_dir_contents()
 
 
 # ------------------------------------------------------------------

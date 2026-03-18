@@ -11,6 +11,7 @@ langchain-openai==0.3.16
 langchain-community==0.3.24
 langchain-chroma==0.2.4
 chromadb>=1.0.9
+faiss-cpu>=1.7.4        # tafsir semantic index (avoids ChromaDB SQLite issues)
 numpy>=2.0.0,<3
 
 # Config
