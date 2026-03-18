@@ -388,8 +388,14 @@ def _run_tafsir_semantic_ingest() -> None:
         _tafsir_ingest_state = {"status": "done", "chunks": chunks, "error": ""}
         logger.info("Background tafsir ingest complete: %d chunks.", chunks)
     except Exception as exc:
+        import traceback as _tb
+        full_tb = _tb.format_exc()
         logger.exception("Background tafsir ingest failed")
-        _tafsir_ingest_state = {"status": "error", "chunks": 0, "error": str(exc)}
+        _tafsir_ingest_state = {
+            "status": "error", "chunks": 0,
+            "error": str(exc),
+            "traceback": full_tb[-2000:],  # last 2000 chars of traceback
+        }
 
 
 @app.post(
