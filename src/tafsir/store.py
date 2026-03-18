@@ -123,24 +123,35 @@ class TafsirStore:
     # ------------------------------------------------------------------
 
     def _wipe_dir_contents(self) -> None:
-        """Fully wipe the chroma subdirectory and recreate it empty.
+        """Delete all ChromaDB files inside the chroma directory.
 
-        Uses ``shutil.rmtree`` on the *subdirectory* itself (safe — the Railway
-        Volume is mounted at the parent, e.g. ``/data/``, not at
-        ``/data/tafsir_chroma/``).  This reliably frees space from all
-        previous partial writes, including locked WAL files.
+        Deletes known ChromaDB artefacts (SQLite, WAL, SHM, UUID subdirs)
+        without removing the directory itself — Railway may rely on the
+        directory being present as a Volume sub-path.
+
+        A short sleep after deletion lets the filesystem fully sync before
+        ChromaDB creates a fresh database.
         """
         chroma_path = Path(self._chroma_dir)
-        try:
-            if chroma_path.exists():
-                shutil.rmtree(chroma_path)
-                logger.info("Removed tafsir chroma directory: %s", self._chroma_dir)
+        if not chroma_path.exists():
             chroma_path.mkdir(parents=True, exist_ok=True)
             os.chmod(self._chroma_dir, 0o777)
-            logger.info("Created fresh tafsir chroma directory: %s", self._chroma_dir)
-        except Exception as exc:
-            logger.exception("Failed to wipe tafsir chroma directory: %s", exc)
-            raise
+            return
+
+        removed = 0
+        for item in list(chroma_path.iterdir()):
+            try:
+                if item.is_dir():
+                    shutil.rmtree(item)
+                else:
+                    item.unlink()
+                removed += 1
+            except Exception as exc:
+                logger.warning("Could not remove %s: %s", item, exc)
+
+        os.chmod(self._chroma_dir, 0o777)
+        logger.info("Wiped %d items from %s", removed, self._chroma_dir)
+        time.sleep(1)   # allow filesystem to settle before ChromaDB reinitialises
 
     def build_collection(self) -> int:
         """Embed Ibn Kathir + Al-Tabari tafsir into the ``tafsir_knowledge`` collection.
@@ -179,16 +190,6 @@ class TafsirStore:
             )
             self._store = None
             self._wipe_dir_contents()
-
-        # --- Pre-initialise the ChromaDB database so the schema (tenants table,
-        # etc.) exists before Chroma.from_documents() tries to use it. ---
-        try:
-            import chromadb as _chromadb
-            _client = _chromadb.PersistentClient(path=self._chroma_dir)
-            _client.heartbeat()
-            logger.debug("ChromaDB pre-init OK for %s", self._chroma_dir)
-        except Exception as _exc:
-            logger.warning("ChromaDB pre-init warning (non-fatal): %s", _exc)
 
         # --- Build full chunk list up-front so we know the total for logging ---
         docs: list[Document] = []
