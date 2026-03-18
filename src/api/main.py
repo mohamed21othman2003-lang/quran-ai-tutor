@@ -419,10 +419,7 @@ async def ingest_tafsir_semantic(
             content={"message": "Ingest already running. Poll /admin/tafsir-ingest-status."},
         )
 
-    loop = asyncio.get_running_loop()
-    background_tasks.add_task(
-        loop.run_in_executor, None, _run_tafsir_semantic_ingest
-    )
+    background_tasks.add_task(_run_tafsir_semantic_ingest)
     return JSONResponse(
         status_code=202,
         content={
