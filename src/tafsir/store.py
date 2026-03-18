@@ -100,6 +100,7 @@ class TafsirStore:
         # across Railway deployments independently of the main RAG store.
         self._chroma_dir = os.environ.get("TAFSIR_CHROMA_DIR", settings.tafsir_chroma_dir)
         os.makedirs(self._chroma_dir, exist_ok=True)
+        os.chmod(self._chroma_dir, 0o777)
 
     def _get_store(self) -> Chroma:
         if self._store is None:
@@ -135,6 +136,7 @@ class TafsirStore:
                 shutil.rmtree(chroma_path)
                 logger.info("Removed tafsir chroma directory: %s", self._chroma_dir)
             chroma_path.mkdir(parents=True, exist_ok=True)
+            os.chmod(self._chroma_dir, 0o777)
             logger.info("Created fresh tafsir chroma directory: %s", self._chroma_dir)
         except Exception as exc:
             logger.exception("Failed to wipe tafsir chroma directory: %s", exc)
