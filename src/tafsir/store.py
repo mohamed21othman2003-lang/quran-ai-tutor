@@ -87,7 +87,9 @@ class TafsirStore:
             dimensions=256,
             openai_api_key=settings.openai_api_key,
         )
-        self._index_dir = os.environ.get("TAFSIR_CHROMA_DIR", settings.tafsir_chroma_dir)
+        # Always use settings — do NOT fall back on TAFSIR_CHROMA_DIR env var
+        # since that legacy variable pointed to an ephemeral path on Railway.
+        self._index_dir = settings.tafsir_chroma_dir
         os.makedirs(self._index_dir, exist_ok=True)
         self._store = None   # lazy-loaded FAISS VectorStore
 
