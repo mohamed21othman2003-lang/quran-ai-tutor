@@ -23,7 +23,7 @@ class Settings(BaseSettings):
 
     # Tafsir
     tafsir_db_dir: str = "data/tafsir"
-    tafsir_chroma_dir: str = "data/tafsir_faiss"   # relative → on Railway Volume alongside chroma_db
+    tafsir_chroma_dir: str = "/data/tafsir_faiss"   # absolute → Railway Volume at /data/ (matches tafsir_db_dir)
 
 
 settings = Settings()
