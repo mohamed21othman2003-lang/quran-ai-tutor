@@ -1,106 +1,176 @@
-# Quran AI Tutor — Claude Code Instructions
+# Quran AI Tutor — Project Instructions for Claude Code
 
 ## Project Overview
-FastAPI backend for an AI-powered Tajweed tutor. Uses GPT-4o for reasoning, ChromaDB for vector storage, LangChain for the RAG pipeline, and SQLite for user auth and progress tracking.
+AI-powered Quran learning platform with Tajweed correction, voice recitation check,
+memorization testing, tafsir search, and AI quiz.
+Production URL: https://web-production-fa50b.up.railway.app
 
-## Stack
-- **API**: FastAPI (async)
-- **LLM**: GPT-4o via OpenAI SDK
-- **Embeddings**: text-embedding-3-small
-- **Vector DB**: ChromaDB (local persistent)
-- **Orchestration**: LangChain
-- **Auth**: JWT (python-jose) + bcrypt password hashing
-- **Database**: SQLite via aiosqlite
-- **Config**: python-dotenv, Pydantic Settings
-- **Languages**: Arabic + English (respond in user's language)
+---
 
-## Endpoints
+## Tech Stack
+- Backend: Python 3.11 + FastAPI + Uvicorn
+- AI: GPT-4o (chat/eval/quiz) + whisper-1 (STT via API) + text-embedding-3-small (256 dims)
+- Vector DB: ChromaDB (persistent) — two collections: tajweed RAG + quran verses
+- Tafsir DB: SQLite (tafaseer.db) — Ibn Kathir + Al-Tabari, 12,472 rows
+- Auth: JWT (python-jose) + bcrypt
+- Deployment: Railway Cloud — Nixpacks + Persistent Volume at /data/
 
-### Tajweed AI
-| Method | Path | Auth | Purpose |
-|--------|------|------|---------|
-| POST | /api/v1/chat | No | Tajweed Q&A via RAG + GPT-4o |
-| GET | /api/v1/rules | No | List all Tajweed rules from knowledge base |
-| POST | /api/v1/quiz | No | Generate a quiz question on a given rule |
-
-### Auth
-| Method | Path | Auth | Purpose |
-|--------|------|------|---------|
-| POST | /api/v1/auth/register | No | Create account → returns JWT token |
-| POST | /api/v1/auth/login | No | Authenticate → returns JWT token |
-
-### Progress
-| Method | Path | Auth | Purpose |
-|--------|------|------|---------|
-| POST | /api/v1/progress | Bearer JWT | Save learning event (chat/quiz + score) |
-| GET | /api/v1/progress/{user_id} | Bearer JWT | Get history and weak rules |
-
-### Admin
-| Method | Path | Auth | Purpose |
-|--------|------|------|---------|
-| POST | /api/v1/admin/ingest | X-Admin-Key header | Re-ingest knowledge base into ChromaDB |
+---
 
 ## Project Structure
-```
+
 quran-ai-mvp/
-├── CLAUDE.md
-├── .env.example
-├── requirements.txt
-├── data/
-│   ├── knowledge/        # Tajweed source documents (.txt / .md)
-│   ├── chroma_db/        # ChromaDB vector store (auto-created)
-│   └── quran_tutor.db    # SQLite database (auto-created on startup)
-├── docs/
-│   ├── PRD.md
-│   └── SPEC.md
-├── frontend/
-│   └── index.html        # Single-file UI (Arabic/English, served at GET /)
-└── src/
-    ├── config.py          # Pydantic Settings (all env vars)
-    ├── api/
-    │   └── main.py        # FastAPI app, CORS, lifespan, all routers
-    ├── rag/
-    │   └── pipeline.py    # RAG pipeline (load → chunk → embed → store → retrieve)
-    ├── agents/
-    │   └── tutor_agent.py # LangChain LCEL agent with Tajweed system prompt
-    ├── auth/
-    │   ├── database.py    # aiosqlite connection + table init
-    │   ├── jwt.py         # bcrypt hashing + JWT encode/decode
-    │   └── router.py      # /register and /login endpoints
-    ├── progress/
-    │   └── router.py      # /progress POST + GET endpoints
-    └── voice/             # Reserved for future TTS/STT
-```
+├── src/
+│   ├── api/main.py           # FastAPI app + all admin endpoints
+│   ├── voice/router.py       # Whisper STT + voice check + memorization
+│   ├── tafsir/
+│   │   ├── router.py         # Tafsir search endpoint
+│   │   ├── store.py          # FAISS index (tafsir semantic search)
+│   │   └── database.py       # SQLite tafaseer.db queries
+│   ├── rag/
+│   │   ├── pipeline.py       # Tajweed RAG (ChromaDB)
+│   │   └── quran_verifier.py # Quran verses ChromaDB collection
+│   ├── search/router.py      # Semantic ayah search
+│   ├── tajweed/router.py     # Tajweed auto-detect
+│   ├── auth/                 # JWT + user SQLite DB
+│   ├── progress/router.py    # User progress tracking
+│   └── config.py             # Settings via pydantic-settings
+├── frontend/index.html       # Single-file SPA — all JS/CSS inline, no framework
+├── data/                     # Railway Volume mount point — NEVER delete
+└── requirements.txt
 
-## Coding Conventions
-- All FastAPI route functions must be `async def`
-- Use Pydantic v2 models for all request/response bodies
-- Secrets loaded exclusively from `.env` via `pydantic-settings`
-- Never hard-code API keys or JWT secrets
-- All docstrings in English; user-facing text supports Arabic + English
-- Progress scores are floats in [0.0, 1.0]
+---
 
-## Commands
-```bash
-# Install dependencies
-pip install -r requirements.txt
+## CRITICAL: Railway Volume & Paths
 
-# Run dev server
-uvicorn src.api.main:app --reload --port 8000
+The Railway Volume is mounted at /data/ (absolute path).
+All persistent data MUST use absolute paths under /data/.
 
-# Populate vector store (run once, or after adding knowledge files)
-python -m src.rag.pipeline
-```
+| Data                        | Absolute Path          |
+|-----------------------------|------------------------|
+| SQLite DB (users/progress)  | /data/quran_tutor.db   |
+| ChromaDB (RAG + Quran)      | /data/chroma_db/       |
+| Tafsir SQLite               | /data/tafsir/          |
+| Tafsir FAISS index          | /data/tafsir_faiss/    |
 
-## Environment Variables
-| Variable | Default | Description |
-|----------|---------|-------------|
-| OPENAI_API_KEY | — | Required. OpenAI API key |
-| CHROMA_PERSIST_DIR | data/chroma_db | ChromaDB storage path |
-| KNOWLEDGE_DIR | data/knowledge | Tajweed document directory |
-| TOP_K | 3 | Chunks retrieved per query |
-| LOG_LEVEL | INFO | Logging verbosity |
-| JWT_SECRET | change-me | Secret key for JWT signing |
-| JWT_EXPIRE_MINUTES | 1440 | Token lifetime (default 24h) |
-| DB_PATH | data/quran_tutor.db | SQLite file path |
-| ADMIN_API_KEY | change-me-admin-key | Key for POST /api/v1/admin/ingest |
+NEVER use relative paths like "data/chroma_db" — they point to ephemeral
+container storage and get wiped on every deploy.
+
+Volume limit: 500MB (currently ~421MB used: 283MB ChromaDB + 138MB tafaseer.db).
+The tafsir FAISS index needs ~50MB extra — upgrade Volume to 2GB before building it.
+
+---
+
+## CRITICAL: AI Model Rules
+
+| Task                  | Model                    | Notes                                      |
+|-----------------------|--------------------------|--------------------------------------------|
+| Voice transcription   | whisper-1 (OpenAI API)   | NEVER use local transformers model         |
+| Chat + RAG answers    | gpt-4o                   | temperature=0.3, max_tokens=1024           |
+| Voice evaluation      | gpt-4o                   | temperature=0.2                            |
+| Quiz generation       | gpt-4o                   | Switch to gpt-4o-mini at scale (90% cheaper) |
+| All embeddings        | text-embedding-3-small   | Always use dimensions=256                  |
+
+Local Whisper model (tarteel-ai/whisper-base-ar-quran) is PERMANENTLY DISABLED.
+It fails on Railway due to torch < 2.6 + missing safetensors format.
+Transcription is handled by _transcribe_with_openai() in src/voice/router.py.
+Do NOT reintroduce the local model or transformers pipeline under any circumstances.
+
+---
+
+## Admin Endpoints
+
+All require header: X-Admin-Key: <value of ADMIN_API_KEY env var>
+Run these after first deploy — most persist on Volume and survive future deploys.
+
+# Build Tajweed RAG — 89 chunks, 25 rules (~30 seconds)
+POST /api/v1/admin/ingest
+
+# Index 6,236 Quran ayahs into ChromaDB (~2 minutes)
+POST /api/v1/admin/ingest-quran
+
+# Download tafaseer.db — Ibn Kathir + Tabari (~1 minute)
+POST /api/v1/admin/ingest-tafsir
+
+# Build FAISS semantic index for tafsir — runs in background, returns 202 immediately
+POST /api/v1/admin/ingest-tafsir-semantic
+
+# Poll tafsir ingest progress
+GET /api/v1/admin/tafsir-ingest-status
+
+# Reset corrupted tafsir FAISS index (wipes /data/tafsir_faiss/ contents)
+DELETE /api/v1/admin/reset-tafsir-index
+
+# Check Volume disk usage
+GET /api/v1/admin/disk-usage
+
+After every new Railway deploy:
+- Run ingest (#1) only if tajweed knowledge files in data/knowledge/ changed.
+- Runs #2 and #3 persist on Volume and do NOT need to be re-run.
+
+---
+
+## Known Issues & Gotchas
+
+### ChromaDB compaction error ("Failed to apply logs to the metadata segment")
+Cause: stale WAL/segment files from a previous failed write.
+Fix:
+  1. DELETE /api/v1/admin/reset-tafsir-index
+  2. POST /api/v1/admin/ingest-tafsir-semantic
+
+### Tafsir semantic ingest always times out at 5 minutes (Railway HTTP limit)
+The endpoint returns 202 Accepted immediately and runs in a background thread.
+Use GET /api/v1/admin/tafsir-ingest-status to poll until status = "done".
+If status stays "idle" forever after POST: the background task is broken.
+Check src/api/main.py — the fix is background_tasks.add_task(_run_tafsir_semantic_ingest)
+passing the function DIRECTLY, not via loop.run_in_executor().
+
+### TAFSIR_CHROMA_DIR environment variable
+This Railway dashboard variable used to override config.py and pointed to an
+ephemeral path. It is now intentionally ignored in src/tafsir/store.py.
+Do NOT re-add TAFSIR_CHROMA_DIR to Railway environment variables.
+
+### Arabic strings appearing as garbled characters (Ø symbols)
+Cause 1 (backend): Arabic string literals stored with wrong encoding.
+Fix: Use Unicode escapes (\uXXXX) for all Arabic strings in Python files.
+See _generate_memorization_tips() in src/voice/router.py for the pattern.
+
+Cause 2 (frontend): Using innerHTML to insert Arabic API responses.
+Fix: Always use element.textContent = text for Arabic strings from the API.
+
+### applyI18n null reference error on page load
+Cause: A DOM element referenced in applyI18n() was removed from the HTML
+but the JS function still tries to set its textContent.
+Fix: Wrap every line in applyI18n() with a null check:
+  const el = $('element-id'); if (el) el.textContent = t('key');
+
+### Volume full (500MB limit)
+Current usage: ~421MB. Only 79MB free.
+Check: GET /api/v1/admin/disk-usage (shows /data/ volume stats separately from root fs).
+To free space: the tafsir FAISS index at /data/tafsir_faiss/ can be deleted safely
+and rebuilt with POST /api/v1/admin/ingest-tafsir-semantic.
+
+---
+
+## Cost Reference
+
+| Operation                        | Approximate Cost              |
+|----------------------------------|-------------------------------|
+| Voice check (1 request)          | ~$0.006 Whisper + ~$0.0001 embedding |
+| Quiz (10 questions, GPT-4o)      | ~$0.015                       |
+| Chat message (GPT-4o)            | ~$0.002–0.005                 |
+| Tafsir FAISS full rebuild        | ~$2–5 (13,900 embeddings)     |
+| Monthly at <50 users             | < $10                         |
+| Monthly at >1000 users           | > $200 — switch to gpt-4o-mini |
+
+---
+
+## Coding Standards
+- Always use async/await in FastAPI endpoints
+- Always use Pydantic models for request and response schemas
+- Never hardcode API keys — always use settings from src/config.py
+- All user-facing responses must support both Arabic and English
+- For Arabic text in HTML: always set dir="rtl" on the element
+- For Arabic text in docx generation: always set rightToLeft=True and bidirectional=True
+- Rate limiting is configured via slowapi — respect 10 req/min for voice endpoints
+- When adding new admin endpoints, always check X-Admin-Key against settings.admin_api_key
