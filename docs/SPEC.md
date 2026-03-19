@@ -1,104 +1,83 @@
-# Technical Specification — Quran AI Tutor MVP
+# Technical Spec: Quran AI Tutor
 
-## 1. RAG Pipeline
+## Architecture
+Client (SPA) → FastAPI → Routers → OpenAI APIs
+                              ↓
+                    ChromaDB (RAG + Quran)
+                    SQLite (Users + Tafsir)
+                    FAISS (Tafsir semantic)
 
-### 1.1 Knowledge Ingestion
-- Source directory: `data/knowledge/` (`.txt` and `.md` files)
-- Loader: `langchain_community.document_loaders.DirectoryLoader`
-- Chunking: `RecursiveCharacterTextSplitter`
-  - `chunk_size=500`, `chunk_overlap=50`
+## API Endpoints
 
-### 1.2 Embeddings
-- Model: `text-embedding-3-small` (OpenAI)
-- Wrapper: `langchain_openai.OpenAIEmbeddings`
+### Auth
+POST   /api/v1/auth/register   — register new user
+POST   /api/v1/auth/login      — login, returns JWT token
+GET    /api/v1/auth/me         — current user info
 
-### 1.3 Vector Store
-- Engine: ChromaDB (local persistent)
-- Collection name: `tajweed_knowledge`
-- Persist directory: `data/chroma_db/`
+### Core Features
+POST   /api/v1/chat            — Tajweed Q&A via RAG + GPT-4o
+GET    /api/v1/rules           — list all Tajweed rules
+POST   /api/v1/quiz            — generate AI quiz question (MCQ)
+POST   /api/v1/voice/check     — check recitation word-by-word
+POST   /api/v1/voice/memorization — identify ayah + score memorization
+POST   /api/v1/tafsir/search   — search Ibn Kathir + Tabari
+POST   /api/v1/search/ayah     — semantic search in 6,236 ayahs
+POST   /api/v1/tajweed/detect  — detect Tajweed rules in Arabic text
+GET    /api/v1/progress        — user progress and stats
+POST   /api/v1/progress        — save session result
 
-### 1.4 Retrieval
-- Strategy: similarity search
-- Top-K: **3 chunks** per query
-- Returned as `List[Document]` with `page_content` + `metadata`
+### Admin (X-Admin-Key required)
+POST   /api/v1/admin/ingest                  — build Tajweed RAG
+POST   /api/v1/admin/ingest-quran            — index Quran ayahs
+POST   /api/v1/admin/ingest-tafsir           — download tafaseer.db
+POST   /api/v1/admin/ingest-tafsir-semantic  — build FAISS index (async)
+GET    /api/v1/admin/tafsir-ingest-status    — poll ingest progress
+DELETE /api/v1/admin/reset-tafsir-index      — wipe FAISS index
+GET    /api/v1/admin/disk-usage              — check Railway Volume usage
 
----
+## RAG Pipeline
+1. Load Tajweed knowledge base (Markdown files in data/knowledge/)
+2. Chunk → Embed with text-embedding-3-small (dimensions=256)
+3. Store in ChromaDB at /data/chroma_db/
+4. On query: retrieve top-3 relevant chunks → inject in GPT-4o prompt
 
-## 2. Agent
+## Voice Pipeline
+1. Browser records audio (WebM via MediaRecorder API)
+2. ffmpeg converts WebM → WAV 16kHz mono
+3. whisper-1 API transcribes Arabic recitation
+4. Compare transcription vs expected ayah word-by-word
+5. QuranVerifier validates against 6,236 indexed ayahs in ChromaDB
 
-### 2.1 System Prompt
-```
-You are an expert Tajweed teacher with deep knowledge of Quranic recitation rules.
-Your role is to help students understand and practice Tajweed correctly.
+## Tafsir Search
+- Mode: keyword (default) — SQLite FTS on tafaseer.db
+- Tashkeel stripped from query before search
+- Returns: Ibn Kathir + Al-Tabari results side-by-side
 
-Rules:
-1. Answer ONLY from the provided context. Do not fabricate rules or references.
-2. Detect the language of the user's question and respond in the same language
-   (Arabic or English).
-3. If the answer is not found in the context, say so clearly — do not guess.
-4. For Arabic responses, use clear Modern Standard Arabic (فصحى).
-5. Keep answers concise and pedagogically structured.
-```
+## Agent System Prompt
+- Role: Expert Tajweed teacher
+- Language: Respond in same language as query (AR/EN)
+- Grounding: Only answer from retrieved RAG context
+- Format: Clear, structured, with examples from Quran
 
-### 2.2 LLM
-- Model: `gpt-4o`
-- Temperature: `0.3` (low for factual accuracy)
-- Max tokens: `1024`
+## Data Model
 
-### 2.3 Chain
-- Type: `RetrievalQA` (LangChain)
-- Chain type: `stuff` (all chunks stuffed into one prompt)
-- Return source documents: `True`
+TajweedRule:
+  - id: str
+  - name_ar: str
+  - name_en: str
+  - category: enum (noon_sakinah | meem_sakinah | madd | qalqala | waqf)
+  - description: str
+  - examples: List[str]
 
----
+User:
+  - id: int
+  - username: str
+  - hashed_password: str
+  - created_at: datetime
 
-## 3. API
-
-### 3.1 POST /api/v1/chat
-**Request**
-```json
-{ "question": "What is Idgham?", "language": "en" }
-```
-**Response**
-```json
-{
-  "answer": "Idgham is the merging of a noon sakinah or tanween...",
-  "sources": ["chunk text 1", "chunk text 2"]
-}
-```
-
-### 3.2 GET /api/v1/rules
-**Response**
-```json
-{
-  "rules": ["Idgham", "Ikhfa", "Iqlab", "Izhar", "Ghunnah", "..."]
-}
-```
-Rules are extracted from ChromaDB document metadata field `rule_name`.
-
-### 3.3 POST /api/v1/quiz
-**Request**
-```json
-{ "rule": "Ikhfa", "language": "en" }
-```
-**Response**
-```json
-{
-  "question": "Which letter triggers Ikhfa after a noon sakinah?",
-  "options": ["ب", "ت", "ن", "م"],
-  "correct_index": 1,
-  "explanation": "..."
-}
-```
-Quiz is generated by GPT-4o using retrieved context for the given rule.
-
----
-
-## 4. Environment Variables
-| Variable | Description |
-|----------|-------------|
-| `OPENAI_API_KEY` | OpenAI API key |
-| `CHROMA_PERSIST_DIR` | Path to ChromaDB storage (default: `data/chroma_db`) |
-| `KNOWLEDGE_DIR` | Path to knowledge files (default: `data/knowledge`) |
-| `TOP_K` | Number of chunks to retrieve (default: `3`) |
-| `LOG_LEVEL` | Logging level (default: `INFO`) |
+ProgressSession:
+  - user_id: int
+  - rule_name: str
+  - score: float (0.0–1.0)
+  - session_type: enum (quiz | voice | chat)
+  - created_at: datetime
