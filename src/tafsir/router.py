@@ -41,6 +41,15 @@ router = APIRouter(prefix="/api/v1/tafsir", tags=["Tafsir"])
 _store: TafsirStore | None = None
 _REF_RE = re.compile(r"^(\d{1,3}):(\d{1,3})$")
 
+_TASHKEEL_RE = re.compile(
+    r'[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E4\u06E7\u06E8\u06EA-\u06ED]'
+)
+
+
+def strip_tashkeel(text: str) -> str:
+    """Remove Arabic diacritical marks (tashkeel/harakat) from text."""
+    return _TASHKEEL_RE.sub('', text)
+
 
 def _get_store() -> TafsirStore:
     global _store
@@ -226,7 +235,8 @@ async def search_tafsir(request: TafsirSearchRequest) -> Any:
         else:
             # --- Default: SQLite LIKE keyword search (no OpenAI calls) ---
             mode = "keyword"
-            rows = search_tafsir_text(request.query, limit=request.top_k)
+            clean_query = strip_tashkeel(request.query)
+            rows = search_tafsir_text(clean_query, limit=request.top_k)
             for row in rows:
                 results.append(TafsirResult(
                     source=    row["name_en"],
