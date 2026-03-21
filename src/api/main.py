@@ -1,4 +1,4 @@
-﻿"""FastAPI application — Quran AI Tutor MVP.
+"""FastAPI application — Quran AI Tutor MVP.
 
 Endpoints
 ---------
@@ -44,6 +44,8 @@ from src.search.router import router as search_router
 from src.tajweed.router import router as tajweed_router
 from src.tafsir.router import router as tafsir_router
 from src.voice.router import router as voice_router
+from src.asbab.router import router as asbab_router
+from src.qiraat.router import router as qiraat_router
 
 # ------------------------------------------------------------------
 # Logging
@@ -143,6 +145,8 @@ app.include_router(voice_router)
 app.include_router(search_router)
 app.include_router(tajweed_router)
 app.include_router(tafsir_router)
+app.include_router(asbab_router)
+app.include_router(qiraat_router)
 
 # ------------------------------------------------------------------
 # Pydantic models
@@ -585,3 +589,139 @@ async def tafsir_ask(request: TafsirAskRequest) -> Any:
         logger.exception("Error in /tafsir/ask")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return TafsirAskResponse(**result)
+
+
+# ------------------------------------------------------------------
+# Admin — Asbab al-Nuzul seed
+# ------------------------------------------------------------------
+
+@app.post("/api/v1/admin/ingest-asbab", tags=["Admin"])
+async def ingest_asbab_data(x_admin_key: str = Header(..., alias="X-Admin-Key")):
+    """Seed the ``asbab_sources`` metadata table with the two canonical books.
+
+    The actual asbab entries (asbab_nuzul rows) must be imported separately
+    via a data pipeline — this endpoint only ensures the source-book rows exist.
+    """
+    if x_admin_key != settings.admin_api_key:
+        raise HTTPException(status_code=403, detail="Invalid admin key.")
+
+    import aiosqlite as _aiosqlite
+
+    sources = [
+        (1, "\u0644\u0628\u0627\u0628 \u0627\u0644\u0646\u0642\u0648\u0644 \u0641\u064a \u0623\u0633\u0628\u0627\u0628 \u0627\u0644\u0646\u0632\u0648\u0644",
+         "Asbab al-Nuzul",
+         "\u0627\u0644\u0625\u0645\u0627\u0645 \u0627\u0644\u0633\u064a\u0648\u0637\u064a",
+         911,
+         "\u0627\u0644\u0643\u062a\u0627\u0628 \u0627\u0644\u0623\u0634\u0647\u0631 \u0641\u064a \u0623\u0633\u0628\u0627\u0628 \u0627\u0644\u0646\u0632\u0648\u0644"),
+        (2, "\u0623\u0633\u0628\u0627\u0628 \u0627\u0644\u0646\u0632\u0648\u0644",
+         "Asbab al-Nuzul - Al-Wahidi",
+         "\u0627\u0644\u0625\u0645\u0627\u0645 \u0627\u0644\u0648\u0627\u062d\u062f\u064a",
+         468,
+         "\u0645\u0646 \u0623\u0648\u0627\u0626\u0644 \u0627\u0644\u0645\u0624\u0644\u0641\u0627\u062a \u0641\u064a \u0623\u0633\u0628\u0627\u0628 \u0627\u0644\u0646\u0632\u0648\u0644"),
+    ]
+
+    async with _aiosqlite.connect(settings.db_path) as db:
+        await db.executemany(
+            """
+            INSERT OR IGNORE INTO asbab_sources
+                (id, name_arabic, name_english, author_arabic, death_year_hijri, description)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            sources,
+        )
+        await db.commit()
+
+        async with db.execute("SELECT COUNT(*) FROM asbab_nuzul") as cur:
+            count = (await cur.fetchone())[0]
+
+    return {
+        "message": "Asbab sources initialised.",
+        "sources_seeded": len(sources),
+        "asbab_entries_in_db": count,
+        "note": (
+            "Source book metadata is ready. "
+            "Populate asbab_nuzul entries via a data import script."
+        ),
+    }
+
+
+# ------------------------------------------------------------------
+# Admin — Qiraat metadata seed
+# ------------------------------------------------------------------
+
+@app.post("/api/v1/admin/ingest-qiraat", tags=["Admin"])
+async def ingest_qiraat_data(x_admin_key: str = Header(..., alias="X-Admin-Key")):
+    """Seed ``qurra`` and ``riwayat`` tables with the ten canonical readers
+    and eight primary transmission chains.
+
+    Variant texts (qiraat_variants rows) require a separate data import.
+    """
+    if x_admin_key != settings.admin_api_key:
+        raise HTTPException(status_code=403, detail="Invalid admin key.")
+
+    import aiosqlite as _aiosqlite
+
+    qurra_data = [
+        (1,  "\u0646\u0627\u0641\u0639 \u0627\u0644\u0645\u062f\u0646\u064a",          "Nafi al-Madani",     169, "\u0627\u0644\u0645\u062f\u064a\u0646\u0629 \u0627\u0644\u0645\u0646\u0648\u0631\u0629", 1),
+        (2,  "\u0627\u0628\u0646 \u0643\u062b\u064a\u0631 \u0627\u0644\u0645\u0643\u064a",        "Ibn Kathir al-Makki",120, "\u0645\u0643\u0629 \u0627\u0644\u0645\u0643\u0631\u0645\u0629",   2),
+        (3,  "\u0623\u0628\u0648 \u0639\u0645\u0631\u0648 \u0627\u0644\u0628\u0635\u0631\u064a",       "Abu Amr al-Basri",   154, "\u0627\u0644\u0628\u0635\u0631\u0629",         3),
+        (4,  "\u0627\u0628\u0646 \u0639\u0627\u0645\u0631 \u0627\u0644\u0634\u0627\u0645\u064a",       "Ibn Amir al-Shami",  118, "\u0627\u0644\u0634\u0627\u0645",            4),
+        (5,  "\u0639\u0627\u0635\u0645 \u0627\u0644\u0643\u0648\u0641\u064a",         "Asim al-Kufi",       127, "\u0627\u0644\u0643\u0648\u0641\u0629",           5),
+        (6,  "\u062d\u0645\u0632\u0629 \u0627\u0644\u0643\u0648\u0641\u064a",         "Hamza al-Kufi",      156, "\u0627\u0644\u0643\u0648\u0641\u0629",           6),
+        (7,  "\u0627\u0644\u0643\u0633\u0627\u0626\u064a \u0627\u0644\u0643\u0648\u0641\u064a",       "Al-Kisai al-Kufi",   189, "\u0627\u0644\u0643\u0648\u0641\u0629",           7),
+        (8,  "\u0623\u0628\u0648 \u062c\u0639\u0641\u0631 \u0627\u0644\u0645\u062f\u0646\u064a",      "Abu Jafar al-Madani",130, "\u0627\u0644\u0645\u062f\u064a\u0646\u0629 \u0627\u0644\u0645\u0646\u0648\u0631\u0629", 8),
+        (9,  "\u064a\u0639\u0642\u0648\u0628 \u0627\u0644\u062d\u0636\u0631\u0645\u064a",      "Yaqub al-Hadrami",   205, "\u0627\u0644\u0628\u0635\u0631\u0629",         9),
+        (10, "\u062e\u0644\u0641 \u0627\u0644\u0628\u0632\u0627\u0631",           "Khalaf al-Bazzar",   229, "\u0628\u063a\u062f\u0627\u062f",           10),
+    ]
+
+    riwayat_data = [
+        (1, 5, "hafs",   "\u062d\u0641\u0635 \u0639\u0646 \u0639\u0627\u0635\u0645",       "Hafs an Asim",
+         "\u0627\u0644\u0631\u0648\u0627\u064a\u0629 \u0627\u0644\u0623\u0643\u062b\u0631 \u0627\u0646\u062a\u0634\u0627\u0631\u0627\u064b \u0641\u064a \u0627\u0644\u0639\u0627\u0644\u0645"),
+        (2, 1, "warsh",  "\u0648\u0631\u0634 \u0639\u0646 \u0646\u0627\u0641\u0639",        "Warsh an Nafi",
+         "\u0634\u0627\u0626\u0639\u0629 \u0641\u064a \u0634\u0645\u0627\u0644 \u0623\u0641\u0631\u064a\u0642\u064a\u0627"),
+        (3, 1, "qaloon", "\u0642\u0627\u0644\u0648\u0646 \u0639\u0646 \u0646\u0627\u0641\u0639",      "Qaloon an Nafi",
+         "\u0634\u0627\u0626\u0639\u0629 \u0641\u064a \u0644\u064a\u0628\u064a\u0627 \u0648\u062a\u0648\u0646\u0633"),
+        (4, 5, "shouba", "\u0634\u0639\u0628\u0629 \u0639\u0646 \u0639\u0627\u0635\u0645",      "Shu'ba an Asim",
+         "\u0631\u0648\u0627\u064a\u0629 \u0639\u0646 \u0639\u0627\u0635\u0645 \u0627\u0644\u0643\u0648\u0641\u064a"),
+        (5, 3, "doori",  "\u0627\u0644\u062f\u0648\u0631\u064a \u0639\u0646 \u0623\u0628\u064a \u0639\u0645\u0631\u0648", "Ad-Duri",
+         "\u0631\u0648\u0627\u064a\u0629 \u0639\u0646 \u0623\u0628\u064a \u0639\u0645\u0631\u0648 \u0627\u0644\u0628\u0635\u0631\u064a"),
+        (6, 3, "soosi",  "\u0627\u0644\u0633\u0648\u0633\u064a \u0639\u0646 \u0623\u0628\u064a \u0639\u0645\u0631\u0648",  "As-Sousi",
+         "\u0631\u0648\u0627\u064a\u0629 \u0639\u0646 \u0623\u0628\u064a \u0639\u0645\u0631\u0648 \u0627\u0644\u0628\u0635\u0631\u064a"),
+        (7, 2, "bazzi",  "\u0627\u0644\u0628\u0632\u064a \u0639\u0646 \u0627\u0628\u0646 \u0643\u062b\u064a\u0631",  "Al-Bazzi",
+         "\u0631\u0648\u0627\u064a\u0629 \u0639\u0646 \u0627\u0628\u0646 \u0643\u062b\u064a\u0631 \u0627\u0644\u0645\u0643\u064a"),
+        (8, 2, "qumbul", "\u0642\u0646\u0628\u0644 \u0639\u0646 \u0627\u0628\u0646 \u0643\u062b\u064a\u0631",   "Qunbul",
+         "\u0631\u0648\u0627\u064a\u0629 \u0639\u0646 \u0627\u0628\u0646 \u0643\u062b\u064a\u0631 \u0627\u0644\u0645\u0643\u064a"),
+    ]
+
+    async with _aiosqlite.connect(settings.db_path) as db:
+        await db.executemany(
+            """
+            INSERT OR IGNORE INTO qurra
+                (id, name_arabic, name_english, death_year_hijri, city, rank_order)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            qurra_data,
+        )
+        await db.executemany(
+            """
+            INSERT OR IGNORE INTO riwayat
+                (id, qari_id, code, name_arabic, name_english, description)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            riwayat_data,
+        )
+        await db.commit()
+
+        async with db.execute("SELECT COUNT(*) FROM qiraat_variants") as cur:
+            variants_count = (await cur.fetchone())[0]
+
+    return {
+        "message": "Qiraat metadata seeded successfully.",
+        "qurra_seeded": len(qurra_data),
+        "riwayat_seeded": len(riwayat_data),
+        "qiraat_variants_in_db": variants_count,
+        "note": (
+            "Reader and riwaya tables are ready. "
+            "Populate qiraat_variants via a data import script."
+        ),
+    }

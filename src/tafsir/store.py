@@ -37,7 +37,7 @@ from src.tafsir.database import iter_all_tafsir
 logger = logging.getLogger(__name__)
 
 # --- Rate-limit-safe ingestion tunables ---
-EMBED_BATCH = 200          # documents sent to OpenAI per embedding call
+EMBED_BATCH = 50           # documents sent to OpenAI per embedding call
 BATCH_SLEEP_S = 2          # seconds to pause between every batch
 RATE_LIMIT_SLEEP_S = 60    # seconds to back off after an HTTP 429
 PROGRESS_LOG_EVERY = 1000  # emit a progress line every N documents embedded

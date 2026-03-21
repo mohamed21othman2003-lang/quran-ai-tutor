@@ -165,6 +165,33 @@ and rebuilt with POST /api/v1/admin/ingest-tafsir-semantic.
 
 ---
 
+## Phase 3 Features
+
+### New Features Being Added
+- القراءات العشر (Ten Qiraat readings) — new module: src/qiraat/
+- أسباب النزول (Asbab al-Nuzul) — new module: src/asbab/
+- Expanded Tafsir — from 2 books to 5 books (add: Al-Baghawi ID=3, Al-Qurtubi ID=5, Al-Sadi ID=7)
+
+### New Database Tables (added to quran_tutor.db)
+- qurra: Ten Quranic readers metadata
+- riwayat: Eight canonical transmission chains
+- qiraat_variants: Reading differences per verse
+- asbab_sources: Books/sources for revelation contexts
+- asbab_nuzul: Revelation context entries per verse
+
+### New Routes
+- /api/v1/qiraat/verse/{surah}:{ayah} — get all readings for a verse
+- /api/v1/qiraat/surah/{surah_id} — get all differences in a surah
+- /api/v1/asbab/verse/{surah}:{ayah} — get asbab for a verse
+- /api/v1/asbab/surah/{surah_id} — list surahs with asbab count
+
+### Data Sources
+- Qiraat data: scraped from nquran.com (see uloom-quran scripts for reference)
+- Asbab data: from tafseer-sqlite-db (same DB already downloaded at /data/tafsir/tafaseer.db)
+- Both are populated via new admin endpoints after deploy
+
+---
+
 ## Coding Standards
 - Always use async/await in FastAPI endpoints
 - Always use Pydantic models for request and response schemas

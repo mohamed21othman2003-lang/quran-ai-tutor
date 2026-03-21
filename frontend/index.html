@@ -2027,6 +2027,21 @@
       color: #fff;
     }
 
+    .tafsir-card-header.tafsir-baghawi {
+      background: linear-gradient(135deg, #7c3aed, #6d28d9);
+      color: #fff;
+    }
+
+    .tafsir-card-header.tafsir-qurtubi {
+      background: linear-gradient(135deg, #d97706, #b45309);
+      color: #fff;
+    }
+
+    .tafsir-card-header.tafsir-sadi {
+      background: linear-gradient(135deg, #0d9488, #0f766e);
+      color: #fff;
+    }
+
     .tafsir-card-meta {
       display: flex;
       flex-direction: column;
@@ -2472,6 +2487,12 @@
       <button class="tab-btn" onclick="switchTab('demo')" id="tab-demo">
         <span class="icon">✨</span><span class="tab-label" id="lbl-demo">Demo</span>
       </button>
+      <button class="tab-btn" onclick="switchTab('qiraat')" id="tab-qiraat">
+        <span class="icon">📖</span><span class="tab-label" id="lbl-qiraat">القراءات</span>
+      </button>
+      <button class="tab-btn" onclick="switchTab('asbab')" id="tab-asbab">
+        <span class="icon">📜</span><span class="tab-label" id="lbl-asbab">أسباب النزول</span>
+      </button>
     </div>
 
     <!-- ── Chat Panel ── -->
@@ -2803,6 +2824,54 @@
         </div>
       </div>
     </div>
+
+  <!-- ── Qiraat Panel ── -->
+  <div class="panel" id="panel-qiraat">
+    <div class="panel-header">
+      <div>
+        <h2 id="qiraat-heading">القراءات العشر</h2>
+        <p id="qiraat-sub">اكتب رقم السورة والآية لعرض القراءات المتاحة</p>
+      </div>
+    </div>
+    <div style="display:flex;gap:12px;align-items:center;justify-content:flex-end;margin-bottom:16px;direction:rtl;flex-wrap:wrap">
+      <input type="number" id="qiraat-surah" min="1" max="114"
+        placeholder="رقم السورة"
+        style="width:130px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;text-align:right;direction:rtl"
+        onkeydown="if(event.key==='Enter') loadQiraat()" />
+      <input type="number" id="qiraat-ayah" min="1"
+        placeholder="رقم الآية"
+        style="width:130px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;text-align:right;direction:rtl"
+        onkeydown="if(event.key==='Enter') loadQiraat()" />
+      <button class="fetch-btn" onclick="loadQiraat()">
+        <span>📖</span><span>عرض القراءات</span>
+      </button>
+    </div>
+    <div id="qiraat-results"></div>
+  </div>
+
+  <!-- ── Asbab al-Nuzul Panel ── -->
+  <div class="panel" id="panel-asbab">
+    <div class="panel-header">
+      <div>
+        <h2 id="asbab-heading">أسباب النزول</h2>
+        <p id="asbab-sub">اكتب رقم الآية لعرض سبب نزولها</p>
+      </div>
+    </div>
+    <div style="display:flex;gap:12px;align-items:center;justify-content:flex-end;margin-bottom:16px;direction:rtl;flex-wrap:wrap">
+      <input type="number" id="asbab-surah" min="1" max="114"
+        placeholder="رقم السورة"
+        style="width:130px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;text-align:right;direction:rtl"
+        onkeydown="if(event.key==='Enter') loadAsbab()" />
+      <input type="number" id="asbab-ayah" min="1"
+        placeholder="رقم الآية"
+        style="width:130px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;text-align:right;direction:rtl"
+        onkeydown="if(event.key==='Enter') loadAsbab()" />
+      <button class="fetch-btn" onclick="loadAsbab()">
+        <span>📜</span><span>عرض أسباب النزول</span>
+      </button>
+    </div>
+    <div id="asbab-results"></div>
+  </div>
   </main>
 
   <!-- ── Demo Panel ── -->
@@ -2986,6 +3055,12 @@
         memNfEn: 'Could not identify the ayah, please try again',
         memNoneFound: 'None ✓',
         tafsir: 'Tafsir',
+        qiraat: 'Qiraat',
+        asbab: 'Asbab',
+        qiraatHeading: 'Ten Readings (Qiraat)',
+        qiraatSub: 'Enter surah and ayah number to view available readings',
+        asbabHeading: 'Asbab al-Nuzul',
+        asbabSub: 'Enter surah and ayah number to view its revelation context',
         tafsirHeading: 'Tafsir Search',
         tafsirSub: 'Commentary from Ibn Kathir & Al-Tabari',
         tafsirModeLabel: 'Search by',
@@ -3100,6 +3175,12 @@
         memNfEn: 'Could not identify the ayah, please try again',
         memNoneFound: 'لا شيء ✓',
         tafsir: 'تفسير',
+        qiraat: 'القراءات',
+        asbab: 'أسباب النزول',
+        qiraatHeading: 'القراءات العشر',
+        qiraatSub: 'اكتب رقم السورة والآية لعرض القراءات المتاحة',
+        asbabHeading: 'أسباب النزول',
+        asbabSub: 'اكتب رقم الآية لعرض سبب نزولها',
         tafsirHeading: 'البحث في التفسير',
         tafsirSub: 'تفسير ابن كثير والطبري',
         tafsirModeLabel: 'البحث بـ',
@@ -3218,6 +3299,16 @@
 
       // Tafsir tab
       { const _el = $('lbl-tafsir'); if (_el) _el.textContent = t('tafsir'); }
+
+      // Qiraat tab
+      { const _el = $('lbl-qiraat'); if (_el) _el.textContent = t('qiraat'); }
+      { const _el = $('qiraat-heading'); if (_el) _el.textContent = t('qiraatHeading'); }
+      { const _el = $('qiraat-sub'); if (_el) _el.textContent = t('qiraatSub'); }
+
+      // Asbab tab
+      { const _el = $('lbl-asbab'); if (_el) _el.textContent = t('asbab'); }
+      { const _el = $('asbab-heading'); if (_el) _el.textContent = t('asbabHeading'); }
+      { const _el = $('asbab-sub'); if (_el) _el.textContent = t('asbabSub'); }
       { const _el = $('tafsir-heading'); if (_el) _el.textContent = t('tafsirHeading'); }
       { const _el = $('tafsir-sub'); if (_el) _el.textContent = t('tafsirSub'); }
       { const _el = $('tafsir-btn-lbl'); if (_el) _el.textContent = t('tafsirSearchBtn'); }
@@ -4449,11 +4540,23 @@
     }
 
     // Canonical display order: Tabari first, Kathir second
-    const TAFSIR_ORDER = ['Al-Tabari', 'Ibn Kathir'];
+    const TAFSIR_ORDER = ['Al-Tabari', 'Ibn Kathir', 'Al-Baghawi', 'Al-Qurtubi', 'Al-Sadi'];
 
     // Map source name → stable CSS key (no spaces/special chars for element IDs)
-    const TAFSIR_KEY = { 'Al-Tabari': 'tabari', 'Ibn Kathir': 'kathir' };
-    const TAFSIR_HEADER_CLASS = { tabari: 'tafsir-tabari', kathir: 'tafsir-kathir' };
+    const TAFSIR_KEY = {
+      'Al-Tabari':  'tabari',
+      'Ibn Kathir': 'kathir',
+      'Al-Baghawi': 'baghawi',
+      'Al-Qurtubi': 'qurtubi',
+      'Al-Sadi':    'sadi',
+    };
+    const TAFSIR_HEADER_CLASS = {
+      tabari:  'tafsir-tabari',
+      kathir:  'tafsir-kathir',
+      baghawi: 'tafsir-baghawi',
+      qurtubi: 'tafsir-qurtubi',
+      sadi:    'tafsir-sadi',
+    };
 
     // Preview character limit before "Read more" toggle
     const TAFSIR_PREVIEW_CHARS = 700;
@@ -4567,6 +4670,110 @@
     /* ═══════════════════════════════════════════════════════════
        Init
     ═══════════════════════════════════════════════════════════ */
+    // ── apiGet helper ─────────────────────────────────────────────────
+    async function apiGet(endpoint) {
+      const headers = {};
+      if (typeof authToken !== 'undefined' && authToken) {
+        headers['Authorization'] = 'Bearer ' + authToken;
+      }
+      const res = await fetch(endpoint, { headers });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        const e = new Error(err.detail || 'Request failed');
+        e.status = res.status;
+        throw e;
+      }
+      return res.json();
+    }
+
+    // ── Qiraat panel ──────────────────────────────────────────────────
+    async function loadQiraat() {
+      const surah = document.getElementById('qiraat-surah').value;
+      const ayah  = document.getElementById('qiraat-ayah').value;
+      if (!surah || !ayah) { showToast('أدخل رقم السورة والآية'); return; }
+      const box = document.getElementById('qiraat-results');
+      box.innerHTML = '<div class="spinner-row"><div class="spinner"></div></div>';
+      try {
+        const data = await apiGet('/api/v1/qiraat/verse/' + surah + ':' + ayah);
+        if (!data.readings || !data.readings.length) {
+          box.innerHTML = '<div class="empty-state">لا توجد قراءات مسجّلة لهذه الآية حتى الآن</div>';
+          return;
+        }
+        box.innerHTML = '';
+        data.readings.forEach(r => {
+          const card = document.createElement('div');
+          card.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px';
+          const title = document.createElement('div');
+          title.style.cssText = 'font-weight:700;color:var(--green-700,#2e7d52);margin-bottom:8px;font-size:1rem';
+          title.textContent = r.riwaya_name;
+          const text = document.createElement('div');
+          text.className = 'ar';
+          text.style.cssText = 'font-size:1.2rem;direction:rtl;text-align:right;line-height:2;color:var(--text)';
+          text.textContent = r.verse_text;
+          card.appendChild(title);
+          card.appendChild(text);
+          if (r.difference_note) {
+            const note = document.createElement('div');
+            note.style.cssText = 'margin-top:8px;font-size:.85rem;color:var(--text-muted);direction:rtl;text-align:right';
+            note.textContent = '📝 ' + r.difference_note;
+            card.appendChild(note);
+          }
+          box.appendChild(card);
+        });
+      } catch(e) {
+        if (e.status === 404) {
+          box.innerHTML = '<div class="empty-state">لا توجد قراءات مسجّلة لهذه الآية</div>';
+        } else {
+          box.innerHTML = '<div class="empty-state">⚠️ ' + (e.message || 'حدث خطأ') + '</div>';
+        }
+      }
+    }
+
+    // ── Asbab al-Nuzul panel ───────────────────────────────────────────
+    async function loadAsbab() {
+      const surah = document.getElementById('asbab-surah').value;
+      const ayah  = document.getElementById('asbab-ayah').value;
+      if (!surah || !ayah) { showToast('أدخل رقم السورة والآية'); return; }
+      const box = document.getElementById('asbab-results');
+      box.innerHTML = '<div class="spinner-row"><div class="spinner"></div></div>';
+      try {
+        const data = await apiGet('/api/v1/asbab/verse/' + surah + ':' + ayah);
+        if (!data.entries || !data.entries.length) {
+          box.innerHTML = '<div class="empty-state">لم يُسجَّل سبب نزول لهذه الآية في قاعدة البيانات</div>';
+          return;
+        }
+        box.innerHTML = '';
+        data.entries.forEach(e => {
+          const card = document.createElement('div');
+          card.style.cssText = 'background:var(--surface);border:2px solid #f59e0b33;border-radius:12px;padding:16px;margin-bottom:12px';
+          if (e.source_name || e.author_arabic) {
+            const src = document.createElement('div');
+            src.style.cssText = 'font-weight:700;color:#b45309;margin-bottom:8px';
+            src.textContent = (e.source_name || '') + (e.author_arabic ? ' — ' + e.author_arabic : '');
+            card.appendChild(src);
+          }
+          const body = document.createElement('div');
+          body.className = 'ar';
+          body.style.cssText = 'font-size:1.05rem;direction:rtl;text-align:right;line-height:1.8;color:var(--text)';
+          body.textContent = e.sabab_text;
+          card.appendChild(body);
+          if (e.authenticity_grade) {
+            const grade = document.createElement('div');
+            grade.style.cssText = 'margin-top:8px;font-size:.85rem;color:var(--text-muted)';
+            grade.textContent = 'الدرجة: ' + e.authenticity_grade;
+            card.appendChild(grade);
+          }
+          box.appendChild(card);
+        });
+      } catch(e) {
+        if (e.status === 404) {
+          box.innerHTML = '<div class="empty-state">لم يُسجَّل سبب نزول لهذه الآية</div>';
+        } else {
+          box.innerHTML = '<div class="empty-state">⚠️ ' + (e.message || 'حدث خطأ') + '</div>';
+        }
+      }
+    }
+
     applyI18n();
   </script>
 </body>
