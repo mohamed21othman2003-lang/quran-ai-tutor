@@ -4395,6 +4395,11 @@
         errEl.textContent = msg;
         errEl.classList.remove('hidden');
         showToast(msg);
+        // Backend returns 404 when no tafsir results are found — show number fallback
+        if (err.status === 404) {
+          const fb = document.getElementById('tafsir-ref-fallback');
+          if (fb) fb.classList.remove('hidden');
+        }
       } finally {
         btn.disabled = false;
         document.getElementById('tafsir-btn-lbl').textContent = t('tafsirSearchBtn');
