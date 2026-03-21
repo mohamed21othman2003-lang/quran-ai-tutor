@@ -1946,6 +1946,44 @@
       padding: 9px 14px;
     }
 
+    .tafsir-ref-fallback {
+      margin-top: 14px;
+      background: var(--green-50, #f0faf4);
+      border: 1.5px solid var(--green-300, #6abf8a);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      text-align: right;
+      direction: rtl;
+    }
+    .tafsir-ref-fallback-msg {
+      margin: 0 0 10px;
+      font-size: .9rem;
+      color: var(--green-700, #2e7d52);
+      font-weight: 600;
+    }
+    .tafsir-ref-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-direction: row-reverse;
+      flex-wrap: wrap;
+    }
+    .tafsir-ref-row input[type="number"] {
+      width: 110px;
+      padding: 8px 10px;
+      border: 1.5px solid var(--green-300, #6abf8a);
+      border-radius: 8px;
+      font-size: .95rem;
+      text-align: center;
+      background: #fff;
+      color: var(--text);
+      direction: rtl;
+    }
+    .tafsir-ref-row input[type="number"]:focus {
+      outline: none;
+      border-color: var(--green-500, #2e7d52);
+    }
+
     /* Results grid — two columns side by side */
     .tafsir-results-grid {
       display: grid;
@@ -2747,6 +2785,23 @@
 
       <!-- Results: two cards side by side -->
       <div class="tafsir-results-grid" id="tafsir-results"></div>
+
+      <!-- Fallback: reference search by surah/ayah numbers -->
+      <div class="tafsir-ref-fallback hidden" id="tafsir-ref-fallback">
+        <p class="tafsir-ref-fallback-msg">لم يتم التعرف على الآية — أدخل رقمها مباشرةً</p>
+        <div class="tafsir-ref-row">
+          <input type="number" id="tafsir-surah-num" min="1" max="114"
+            placeholder="رقم السورة"
+            onkeydown="if(event.key==='Enter') runTafsirRefSearch()" />
+          <input type="number" id="tafsir-ayah-num" min="1"
+            placeholder="رقم الآية"
+            onkeydown="if(event.key==='Enter') runTafsirRefSearch()" />
+          <button class="fetch-btn" id="tafsir-ref-btn" onclick="runTafsirRefSearch()" style="padding:8px 16px">
+            <span>🔍</span>
+            <span id="tafsir-ref-btn-lbl">بحث</span>
+          </button>
+        </div>
+      </div>
     </div>
   </main>
 
@@ -4327,6 +4382,7 @@
       document.getElementById('tafsir-btn-lbl').textContent = t('tafsirLoading');
       spinner.classList.remove('hidden');
       resultsEl.innerHTML = '';
+      document.getElementById('tafsir-ref-fallback').classList.add('hidden');
 
       // Always search by Arabic text
       const body = { query, semantic: false };
@@ -4342,6 +4398,47 @@
       } finally {
         btn.disabled = false;
         document.getElementById('tafsir-btn-lbl').textContent = t('tafsirSearchBtn');
+        spinner.classList.add('hidden');
+      }
+    }
+
+    async function runTafsirRefSearch() {
+      const surahEl = document.getElementById('tafsir-surah-num');
+      const ayahEl  = document.getElementById('tafsir-ayah-num');
+      const surah = parseInt(surahEl.value);
+      const ayah  = parseInt(ayahEl.value);
+
+      if (!surah || surah < 1 || surah > 114) {
+        showToast('يرجى إدخال رقم سورة صحيح (1–1١٤)');
+        surahEl.focus();
+        return;
+      }
+      if (!ayah || ayah < 1) {
+        showToast('يرجى إدخال رقم آية صحيح');
+        ayahEl.focus();
+        return;
+      }
+
+      const refBtn = document.getElementById('tafsir-ref-btn');
+      const spinner = document.getElementById('tafsir-spinner');
+      const resultsEl = document.getElementById('tafsir-results');
+      refBtn.disabled = true;
+      document.getElementById('tafsir-ref-btn-lbl').textContent = 'جارٍ…';
+      spinner.classList.remove('hidden');
+      resultsEl.innerHTML = '';
+
+      try {
+        const data = await apiPost('/api/v1/tafsir/search', { reference: `${surah}:${ayah}` });
+        document.getElementById('tafsir-ref-fallback').classList.add('hidden');
+        renderTafsirResults(data);
+      } catch (err) {
+        const errEl = document.getElementById('tafsir-error');
+        errEl.textContent = err.message || t('tafsirError');
+        errEl.classList.remove('hidden');
+        showToast(err.message || t('tafsirError'));
+      } finally {
+        refBtn.disabled = false;
+        document.getElementById('tafsir-ref-btn-lbl').textContent = 'بحث';
         spinner.classList.add('hidden');
       }
     }
@@ -4363,6 +4460,7 @@
       if (!data.results || !data.results.length) {
         resultsEl.innerHTML =
           `<div class="empty-state" style="grid-column:1/-1">${t('tafsirNoResults')}</div>`;
+        document.getElementById('tafsir-ref-fallback').classList.remove('hidden');
         return;
       }
 
