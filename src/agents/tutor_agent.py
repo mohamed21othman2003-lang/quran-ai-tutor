@@ -10,6 +10,7 @@ Provides three async public methods:
 
 import json
 import logging
+import re
 from typing import Any
 
 from langchain_core.output_parsers import StrOutputParser
@@ -45,8 +46,19 @@ Rules:
 4. For Asbab al-Nuzul: be accurate and mention the source (Al-Wahidi or Al-Suyuti).
 5. For Qiraat questions: explain the difference clearly with examples.
 6. Never fabricate Quranic text \u2014 always be precise and accurate.
-7. If the context does not cover the question, say so clearly rather than guess.
+7. The context above is for Tajweed only. For Tafsir, Asbab al-Nuzul, or Qiraat
+   questions, answer comprehensively from your own Islamic scholarship knowledge \u2014
+   do NOT say the context does not cover this. Give detailed, well-structured answers.
 8. For Arabic responses, use clear Modern Standard Arabic (\u0641\u0635\u062d\u0649).
+9. At the very end of every response, after a blank line, add exactly this line:
+   SOURCES: ["source1", "source2"]
+   Rules for sources:
+   - Tafsir answers: list the scholars referenced e.g. "\u0627\u0628\u0646 \u0643\u062b\u064a\u0631", "\u0627\u0644\u0637\u0628\u0631\u064a", "\u0627\u0644\u0633\u0639\u062f\u064a"
+   - Asbab al-Nuzul: list "\u0627\u0644\u0648\u0627\u062d\u062f\u064a \u2014 \u0623\u0633\u0628\u0627\u0628 \u0627\u0644\u0646\u0632\u0648\u0644" and/or "\u0627\u0644\u0633\u064a\u0648\u0637\u064a \u2014 \u0644\u0628\u0627\u0628 \u0627\u0644\u0646\u0642\u0648\u0644"
+   - Qiraat answers: list the specific riwayat referenced e.g. "\u062d\u0641\u0635 \u0639\u0646 \u0639\u0627\u0635\u0645", "\u0648\u0631\u0634 \u0639\u0646 \u0646\u0627\u0641\u0639"
+   - Tajweed answers: list the rule name e.g. "\u0625\u062f\u063a\u0627\u0645 \u0628\u063a\u0646\u0629", "\u0627\u0644\u0625\u062e\u0641\u0627\u0621 \u0627\u0644\u062d\u0642\u064a\u0642\u064a"
+   - If no specific source: SOURCES: []
+   This line must ALWAYS be present at the end.
 
 Context from knowledge base:
 {context}"""
@@ -138,7 +150,7 @@ class TutorAgent:
         self.llm = ChatOpenAI(
             model="gpt-4o",
             temperature=0.3,
-            max_tokens=1024,
+            max_tokens=2048,
             openai_api_key=settings.openai_api_key,
         )
 
@@ -174,8 +186,20 @@ class TutorAgent:
 
         chain, retriever = self._build_qa_chain()
         docs = await retriever.ainvoke(question)
-        sources = [doc.page_content for doc in docs]
         answer_text = await chain.ainvoke(question)
+
+        # Extract structured SOURCES line appended by GPT-4o at the end
+        sources: list[str] = []
+        sources_match = re.search(
+            r'\nSOURCES:\s*(\[.*?\])\s*$', answer_text, re.DOTALL
+        )
+        if sources_match:
+            try:
+                sources = json.loads(sources_match.group(1))
+            except (json.JSONDecodeError, ValueError):
+                sources = []
+            answer_text = answer_text[:sources_match.start()].rstrip()
+
         return {"answer": answer_text, "sources": sources}
 
     async def answer_tafsir(

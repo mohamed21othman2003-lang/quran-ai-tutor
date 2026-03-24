@@ -3478,7 +3478,7 @@
         toggle.textContent = t('sources');
         const box = document.createElement('div');
         box.className = 'sources-box';
-        box.textContent = sources.map((s, i) => `[${i + 1}] ${s.slice(0, 160)}…`).join('\n\n');
+        box.textContent = sources.map((s, i) => `[${i + 1}] ${s}`).join('\n\n');
         toggle.onclick = () => {
           box.classList.toggle('open');
           toggle.textContent = box.classList.contains('open') ? t('hideSource') : t('sources');
