@@ -2,10 +2,11 @@
 
 Covers Tajweed, Tafsir (8 classical books), Asbab al-Nuzul, and Qiraat.
 
-Provides three async public methods:
-  - answer()          — Quran sciences Q&A grounded in the knowledge base
-  - generate_quiz()   — Multiple-choice quiz for any Quranic topic
-  - answer_tafsir()   — Quranic commentary Q&A using TafsirStore context
+Provides four async public methods:
+  - answer()               — Quran sciences Q&A grounded in the knowledge base
+  - generate_quiz()        — Single multiple-choice quiz question (legacy)
+  - generate_quiz_batch()  — N unique quiz questions in one GPT call (no duplicates)
+  - answer_tafsir()        — Quranic commentary Q&A using TafsirStore context
 """
 
 import json
@@ -77,6 +78,38 @@ Return a JSON object with exactly these keys:
 
 Respond in {language}. Return only valid JSON, no markdown fences."""
 
+_QUIZ_BATCH_SYSTEM = """You are an expert Quran and Tajweed teacher generating a quiz.
+
+Topic: {rule}
+Number of questions: {count}
+Language: {language}
+
+Generate exactly {count} UNIQUE multiple-choice questions about this topic.
+Each question MUST be completely different — different concept, different \
+wording, different Quranic example if applicable.
+
+Rules:
+- Questions must test different aspects or sub-rules of the topic
+- Never repeat the same question or paraphrase it
+- Options must be plausible but clearly distinguishable
+- Base questions on authentic Islamic knowledge
+- If topic is Tajweed: use real Quranic word examples
+- If topic is Tafsir/Quran sciences: test conceptual understanding
+
+Return ONLY a valid JSON array (no markdown, no preamble) with exactly \
+{count} objects, each with:
+- "question": string
+- "options": array of exactly 4 strings
+- "correct_index": integer 0-3
+- "explanation": string (clear explanation of why this is correct)
+
+Example format:
+[
+  {{"question": "...", "options": ["...","...","...","..."],
+    "correct_index": 0, "explanation": "..."}},
+  ...
+]"""
+
 QA_PROMPT = ChatPromptTemplate.from_messages([
     ("system", _QA_SYSTEM),
     ("human", "{question}"),
@@ -84,6 +117,10 @@ QA_PROMPT = ChatPromptTemplate.from_messages([
 
 QUIZ_PROMPT = ChatPromptTemplate.from_messages([
     ("human", _QUIZ_SYSTEM),
+])
+
+QUIZ_BATCH_PROMPT = ChatPromptTemplate.from_messages([
+    ("human", _QUIZ_BATCH_SYSTEM),
 ])
 
 _TAFSIR_QA_SYSTEM = """You are a knowledgeable Islamic scholar specialising in Quranic exegesis (tafsir).
@@ -247,7 +284,11 @@ class TutorAgent:
         return {"answer": answer_text, "sources": sources}
 
     async def generate_quiz(self, rule: str, language: str = "en") -> dict[str, Any]:
-        """Generate a multiple-choice quiz for the given Tajweed rule."""
+        """Generate a single multiple-choice quiz question for the given Tajweed rule.
+
+        Kept for backward compatibility — prefer ``generate_quiz_batch()`` for
+        generating multiple questions, as it avoids duplicate questions.
+        """
         if not self.rag.is_populated():
             return {
                 "question": _EMPTY_KB_MSG.get(language, _EMPTY_KB_MSG["en"]),
@@ -275,3 +316,56 @@ class TutorAgent:
                 "correct_index": 0,
                 "explanation": "",
             }
+
+    async def generate_quiz_batch(
+        self, rule: str, count: int = 3, language: str = "ar"
+    ) -> list[dict[str, Any]]:
+        """Generate *count* unique quiz questions in a single GPT call.
+
+        Uses a higher temperature and a batch prompt that explicitly forbids
+        question repetition, eliminating the duplicate-question problem that
+        occurs when the old endpoint is called N times in parallel.
+        """
+        if not self.rag.is_populated():
+            empty_msg = _EMPTY_KB_MSG.get(language, _EMPTY_KB_MSG["en"])
+            return [{"question": empty_msg, "options": [],
+                     "correct_index": 0, "explanation": ""}]
+
+        # Retrieve context only for Tajweed topics (best-effort; empty is fine)
+        try:
+            docs = self.rag.retrieve(rule)
+            context = "\n\n".join(d.page_content for d in docs) if docs else ""
+        except Exception:
+            context = ""
+
+        lang_label = "Arabic" if language == "ar" else "English"
+
+        # Higher temperature encourages variety across questions in the batch
+        creative_llm = ChatOpenAI(
+            model="gpt-4o",
+            temperature=0.8,
+            max_tokens=3000,
+            openai_api_key=settings.openai_api_key,
+        )
+
+        chain = QUIZ_BATCH_PROMPT | creative_llm | StrOutputParser()
+        raw = await chain.ainvoke({
+            "rule": rule,
+            "count": count,
+            "language": lang_label,
+            "context": context,
+        })
+
+        try:
+            clean = raw.strip()
+            if clean.startswith("```"):
+                clean = re.sub(r"```json?\n?", "", clean)
+                clean = clean.replace("```", "")
+            questions = json.loads(clean.strip())
+            if isinstance(questions, list):
+                return questions[:count]
+            # GPT occasionally wraps a single object instead of an array
+            return [questions]
+        except (json.JSONDecodeError, ValueError):
+            logger.warning("GPT returned non-JSON for batch quiz: %.300s", raw)
+            return []

@@ -4,7 +4,8 @@ Endpoints
 ---------
 POST /api/v1/chat                  — Tajweed Q&A (RAG + GPT-4o)
 GET  /api/v1/rules                 — List all Tajweed rules in the knowledge base
-POST /api/v1/quiz                  — Generate a multiple-choice quiz for a given rule
+POST /api/v1/quiz                  — Generate a single multiple-choice quiz question
+POST /api/v1/quiz/batch            — Generate N unique quiz questions (no duplicates)
 POST /api/v1/auth/register         — Create account, returns JWT
 POST /api/v1/auth/login            — Authenticate, returns JWT
 POST /api/v1/progress              — Save a learning event (auth required)
@@ -226,7 +227,7 @@ async def list_rules() -> Any:
 
 @app.post("/api/v1/quiz", response_model=QuizResponse, summary="Generate a quiz")
 async def generate_quiz(request: QuizRequest) -> Any:
-    """Generate a multiple-choice quiz question for the specified Tajweed rule.
+    """Generate a single multiple-choice quiz question for the specified Tajweed rule.
 
     The quiz question, options, and explanation are produced by GPT-4o using
     only context retrieved from the knowledge base.
@@ -239,6 +240,38 @@ async def generate_quiz(request: QuizRequest) -> Any:
         logger.exception("Error in /quiz")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return QuizResponse(**quiz)
+
+
+class QuizBatchRequest(BaseModel):
+    rule: str = Field(..., min_length=1, max_length=200,
+                      examples=["الإخفاء الحقيقي"])
+    count: int = Field(default=3, ge=1, le=10)
+    language: str = Field(default="ar", pattern="^(en|ar)$")
+
+
+@app.post(
+    "/api/v1/quiz/batch",
+    summary="Generate multiple unique quiz questions in one call",
+)
+async def generate_quiz_batch(request: QuizBatchRequest) -> Any:
+    """Generate *count* unique quiz questions in a single GPT call.
+
+    Eliminates the duplicate-question problem caused by firing N parallel
+    requests with the same topic.  The model is instructed to produce
+    completely different questions testing different sub-aspects of the topic.
+    """
+    if agent is None:
+        raise HTTPException(status_code=503, detail="Agent not initialised.")
+    try:
+        questions = await agent.generate_quiz_batch(
+            rule=request.rule,
+            count=request.count,
+            language=request.language,
+        )
+    except Exception as exc:
+        logger.exception("Error in /quiz/batch")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return {"questions": questions, "count": len(questions)}
 
 
 @app.post(

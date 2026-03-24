@@ -3637,16 +3637,16 @@
         ? rule
         : (QUIZ_CAT_LABELS[category] || category);
 
-      const promises = Array.from({ length: count }, () =>
-        apiPost('/api/v1/quiz', { rule: topic, language: ql }).catch(() => null)
-      );
-
       try {
-        const results = await Promise.all(promises);
+        const result = await apiPost('/api/v1/quiz/batch', {
+          rule: topic,
+          count: count,
+          language: ql,
+        });
         prog.style.display = 'none';
-        const valid = results.filter(Boolean);
-        if (!valid.length) { showToast(t('errorApi')); return; }
-        valid.forEach((data, idx) => renderQuizCard(data, ql, idx, topic));
+        const questions = result?.questions || [];
+        if (!questions.length) { showToast(t('errorApi')); return; }
+        questions.forEach((data, idx) => renderQuizCard(data, ql, idx, topic));
       } catch {
         showToast(t('errorApi'));
         prog.style.display = 'none';
