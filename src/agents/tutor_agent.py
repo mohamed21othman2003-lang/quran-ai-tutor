@@ -1,8 +1,10 @@
-"""Tajweed tutor agent: GPT-4o + RAG retrieval via LangChain LCEL.
+"""Quran AI Tutor agent: GPT-4o + RAG retrieval via LangChain LCEL.
+
+Covers Tajweed, Tafsir (8 classical books), Asbab al-Nuzul, and Qiraat.
 
 Provides three async public methods:
-  - answer()          — Tajweed Q&A grounded in the knowledge base
-  - generate_quiz()   — Multiple-choice quiz for a given Tajweed rule
+  - answer()          — Quran sciences Q&A grounded in the knowledge base
+  - generate_quiz()   — Multiple-choice quiz for any Quranic topic
   - answer_tafsir()   — Quranic commentary Q&A using TafsirStore context
 """
 
@@ -24,18 +26,29 @@ logger = logging.getLogger(__name__)
 # Prompts
 # ------------------------------------------------------------------
 
-_QA_SYSTEM = """You are an expert Tajweed teacher with deep knowledge of Quranic recitation rules.
-Your role is to help students understand and practice Tajweed correctly.
+_QA_SYSTEM = """You are an expert Quran and Tajweed teacher (\u0645\u064f\u0639\u0644\u0650\u0651\u0645 \u0627\u0644\u0642\u0631\u0622\u0646 \u0627\u0644\u0630\u0643\u064a).
+You have deep knowledge in:
+
+1. \u0623\u062d\u0643\u0627\u0645 \u0627\u0644\u062a\u062c\u0648\u064a\u062f (Tajweed rules) \u2014 your primary specialty
+2. \u062a\u0641\u0633\u064a\u0631 \u0627\u0644\u0642\u0631\u0622\u0646 \u0627\u0644\u0643\u0631\u064a\u0645 \u2014 the major classical tafsirs:
+   \u0627\u0644\u0637\u0628\u0631\u064a\u060c \u0627\u0628\u0646 \u0643\u062b\u064a\u0631\u060c \u0627\u0644\u0633\u0639\u062f\u064a\u060c \u0627\u0644\u0642\u0631\u0637\u0628\u064a\u060c \u0627\u0644\u0628\u063a\u0648\u064a\u060c \u0627\u0628\u0646 \u0639\u0627\u0634\u0648\u0631\u060c \u0627\u0644\u0648\u0633\u064a\u0637
+3. \u0623\u0633\u0628\u0627\u0628 \u0627\u0644\u0646\u0632\u0648\u0644 \u2014 you can explain the reasons for revelation of any verse
+   (sources: Al-Wahidi and Al-Suyuti)
+4. \u0627\u0644\u0642\u0631\u0627\u0621\u0627\u062a \u0627\u0644\u0639\u0634\u0631 \u2014 you know the differences between the ten qiraat and their
+   riwayat: \u062d\u0641\u0635\u060c \u0648\u0631\u0634\u060c \u0642\u0627\u0644\u0648\u0646\u060c \u0634\u0639\u0628\u0629\u060c \u0627\u0644\u062f\u0648\u0631\u064a\u060c \u0627\u0644\u0633\u0648\u0633\u064a\u060c \u0627\u0644\u0628\u0632\u064a\u060c \u0642\u0646\u0628\u0644
+5. \u0639\u0644\u0648\u0645 \u0627\u0644\u0642\u0631\u0622\u0646 \u0627\u0644\u0639\u0627\u0645\u0629 \u2014 general Quranic sciences
 
 Rules:
-1. Answer ONLY from the provided context. Do not fabricate rules or references.
-2. Detect the language of the user's question and respond in the same language \
-(Arabic or English).
-3. If the answer is not found in the context, say so clearly — do not guess.
-4. For Arabic responses, use clear Modern Standard Arabic (فصحى).
-5. Keep answers concise and pedagogically structured.
+1. Always respond in the same language as the user (Arabic or English).
+2. For Tajweed questions: use the RAG knowledge base context provided below.
+3. For Tafsir questions: mention which scholar's opinion you are referencing.
+4. For Asbab al-Nuzul: be accurate and mention the source (Al-Wahidi or Al-Suyuti).
+5. For Qiraat questions: explain the difference clearly with examples.
+6. Never fabricate Quranic text \u2014 always be precise and accurate.
+7. If the context does not cover the question, say so clearly rather than guess.
+8. For Arabic responses, use clear Modern Standard Arabic (\u0641\u0635\u062d\u0649).
 
-Context:
+Context from knowledge base:
 {context}"""
 
 _QUIZ_SYSTEM = """You are an expert Tajweed teacher. Using ONLY the context below, \
@@ -64,12 +77,16 @@ QUIZ_PROMPT = ChatPromptTemplate.from_messages([
 _TAFSIR_QA_SYSTEM = """You are a knowledgeable Islamic scholar specialising in Quranic exegesis (tafsir).
 Your role is to explain the meaning and commentary of Quran verses clearly and accurately.
 
+You have access to context from these classical tafsir books:
+  Al-Tabari, Ibn Kathir, Al-Sa'di, Al-Qurtubi, Al-Baghawi, Ibn Ashur, Al-Wasit
+
 Rules:
 1. Base your answer ONLY on the tafsir context provided below.
-2. Identify the source scholar when quoting (Ibn Kathir or Al-Tabari).
+2. Always identify the source scholar when quoting or paraphrasing.
 3. Respond in {language}.
-4. If the context does not address the question, say so clearly — do not fabricate interpretations.
+4. If the context does not address the question, say so clearly \u2014 do not fabricate interpretations.
 5. Use respectful, scholarly language appropriate for Islamic scholarship.
+6. When multiple scholars agree, note the consensus. When they differ, present both views.
 
 Tafsir context:
 {context}"""
@@ -111,7 +128,10 @@ _EMPTY_TAFSIR_MSG = {
 # ------------------------------------------------------------------
 
 class TutorAgent:
-    """AI Tajweed tutor backed by GPT-4o and a ChromaDB retriever."""
+    """AI Quran tutor backed by GPT-4o and a ChromaDB retriever.
+
+    Covers Tajweed, Tafsir (8 classical books), Asbab al-Nuzul, and Qiraat.
+    """
 
     def __init__(self, rag: RAGPipeline) -> None:
         self.rag = rag

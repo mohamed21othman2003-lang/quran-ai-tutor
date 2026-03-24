@@ -2502,12 +2502,6 @@
       <button class="tab-btn" onclick="switchTab('demo')" id="tab-demo">
         <span class="icon">✨</span><span class="tab-label" id="lbl-demo">Demo</span>
       </button>
-      <button class="tab-btn" onclick="switchTab('qiraat')" id="tab-qiraat">
-        <span class="icon">📖</span><span class="tab-label" id="lbl-qiraat">القراءات</span>
-      </button>
-      <button class="tab-btn" onclick="switchTab('asbab')" id="tab-asbab">
-        <span class="icon">📜</span><span class="tab-label" id="lbl-asbab">أسباب النزول</span>
-      </button>
     </div>
 
     <!-- ── Chat Panel ── -->
@@ -2515,13 +2509,12 @@
       <div id="chat-window">
         <div class="welcome" id="chat-welcome">
           <div class="welcome-icon">🕌</div>
-          <h2 id="welcome-title">Ask about Tajweed</h2>
-          <p id="welcome-sub">Type your question in English or Arabic. The AI answers from authentic Tajweed knowledge.
-          </p>
+          <h2 id="welcome-title">Ask about Tajweed, Tafsir & More</h2>
+          <p id="welcome-sub">Ask about Tajweed, Tafsir, Asbab al-Nuzul, and the Ten Readings.</p>
         </div>
       </div>
       <div class="chat-input-row">
-        <textarea id="chat-input" rows="1" placeholder="Ask a Tajweed question…" onkeydown="handleKey(event)"
+        <textarea id="chat-input" rows="1" placeholder="Ask about Tajweed, Tafsir, Asbab al-Nuzul, Qiraat…" onkeydown="handleKey(event)"
           oninput="autoResize(this)"></textarea>
         <button class="send-btn" id="send-btn" onclick="sendChat()" title="Send">➤</button>
       </div>
@@ -2840,13 +2833,6 @@
       </div>
     </div>
 
-  <!-- ── Qiraat Panel ── -->
-  <div class="panel" id="panel-qiraat">
-    <div class="panel-header">
-      <div>
-        <h2 id="qiraat-heading">القراءات العشر</h2>
-        <p id="qiraat-sub">اكتب رقم السورة والآية لعرض القراءات المتاحة</p>
-      </div>
     </div>
     <div style="display:flex;gap:12px;align-items:center;justify-content:flex-end;margin-bottom:16px;direction:rtl;flex-wrap:wrap">
       <input type="number" id="qiraat-surah" min="1" max="114"
@@ -2864,13 +2850,6 @@
     <div id="qiraat-results"></div>
   </div>
 
-  <!-- ── Asbab al-Nuzul Panel ── -->
-  <div class="panel" id="panel-asbab">
-    <div class="panel-header">
-      <div>
-        <h2 id="asbab-heading">أسباب النزول</h2>
-        <p id="asbab-sub">اكتب رقم الآية لعرض سبب نزولها</p>
-      </div>
     </div>
     <div style="display:flex;gap:12px;align-items:center;justify-content:flex-end;margin-bottom:16px;direction:rtl;flex-wrap:wrap">
       <input type="number" id="asbab-surah" min="1" max="114"
@@ -2985,8 +2964,8 @@
         loginBtn: 'Login', regBtn: 'Create Account',
         logout: 'Logout',
         chat: 'Chat', rules: 'Rules', quiz: 'Quiz', progress: 'Progress',
-        welcomeTitle: 'Ask about Tajweed',
-        welcomeSub: 'Type your question in English or Arabic. The AI answers from authentic Tajweed knowledge.',
+        welcomeTitle: 'Ask about Tajweed, Tafsir & More',
+        welcomeSub: 'Ask about Tajweed, Tafsir, Asbab al-Nuzul, and the Ten Readings.',
         placeholder: 'Ask a Tajweed question…',
         rulesHeading: 'Tajweed Rules', rulesSub: 'Browse all rules in the knowledge base',
         loadRules: 'Load Rules', rulesEmpty: 'Click "Load Rules" to fetch the knowledge base.',
@@ -3070,12 +3049,7 @@
         memNfEn: 'Could not identify the ayah, please try again',
         memNoneFound: 'None ✓',
         tafsir: 'Tafsir',
-        qiraat: 'Qiraat',
-        asbab: 'Asbab',
-        qiraatHeading: 'Ten Readings (Qiraat)',
-        qiraatSub: 'Enter surah and ayah number to view available readings',
-        asbabHeading: 'Asbab al-Nuzul',
-        asbabSub: 'Enter surah and ayah number to view its revelation context',
+
         tafsirHeading: 'Tafsir Search',
         tafsirSub: 'Commentary from Ibn Kathir & Al-Tabari',
         tafsirModeLabel: 'Search by',
@@ -3105,8 +3079,8 @@
         loginBtn: 'دخول', regBtn: 'إنشاء حساب',
         logout: 'خروج',
         chat: 'محادثة', rules: 'القواعد', quiz: 'اختبار', progress: 'تقدّمي',
-        welcomeTitle: 'اسأل عن التجويد',
-        welcomeSub: 'اكتب سؤالك بالعربية أو الإنجليزية، وسيُجيبك الذكاء الاصطناعي من مصادر التجويد الموثوقة.',
+        welcomeTitle: 'اسألني عن التجويد والتفسير والقراءات',
+        welcomeSub: 'اسأل عن التجويد، التفسير، أسباب النزول، والقراءات العشر.',
         placeholder: 'اكتب سؤالك هنا…',
         rulesHeading: 'قواعد التجويد', rulesSub: 'تصفح جميع قواعد التجويد المتاحة',
         loadRules: 'تحميل القواعد', rulesEmpty: 'انقر "تحميل القواعد" لعرض قواعد التجويد المتاحة.',
@@ -3190,12 +3164,7 @@
         memNfEn: 'Could not identify the ayah, please try again',
         memNoneFound: 'لا شيء ✓',
         tafsir: 'تفسير',
-        qiraat: 'القراءات',
-        asbab: 'أسباب النزول',
-        qiraatHeading: 'القراءات العشر',
-        qiraatSub: 'اكتب رقم السورة والآية لعرض القراءات المتاحة',
-        asbabHeading: 'أسباب النزول',
-        asbabSub: 'اكتب رقم الآية لعرض سبب نزولها',
+
         tafsirHeading: 'البحث في التفسير',
         tafsirSub: 'تفسير ابن كثير والطبري',
         tafsirModeLabel: 'البحث بـ',
@@ -3315,15 +3284,6 @@
       // Tafsir tab
       { const _el = $('lbl-tafsir'); if (_el) _el.textContent = t('tafsir'); }
 
-      // Qiraat tab
-      { const _el = $('lbl-qiraat'); if (_el) _el.textContent = t('qiraat'); }
-      { const _el = $('qiraat-heading'); if (_el) _el.textContent = t('qiraatHeading'); }
-      { const _el = $('qiraat-sub'); if (_el) _el.textContent = t('qiraatSub'); }
-
-      // Asbab tab
-      { const _el = $('lbl-asbab'); if (_el) _el.textContent = t('asbab'); }
-      { const _el = $('asbab-heading'); if (_el) _el.textContent = t('asbabHeading'); }
-      { const _el = $('asbab-sub'); if (_el) _el.textContent = t('asbabSub'); }
       { const _el = $('tafsir-heading'); if (_el) _el.textContent = t('tafsirHeading'); }
       { const _el = $('tafsir-sub'); if (_el) _el.textContent = t('tafsirSub'); }
       { const _el = $('tafsir-btn-lbl'); if (_el) _el.textContent = t('tafsirSearchBtn'); }
