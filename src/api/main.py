@@ -491,6 +491,20 @@ async def reset_tafsir_index(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+@app.get("/api/v1/admin/tafsir-books", tags=["Admin"])
+async def get_tafsir_books(x_admin_key: str = Header(..., alias="X-Admin-Key")):
+    """Return all book names and IDs from the TafseerName table in tafaseer.db."""
+    if x_admin_key != settings.admin_api_key:
+        raise HTTPException(status_code=403, detail="Invalid admin key.")
+    import aiosqlite as _aiosqlite
+    import os as _os
+    db_path = _os.path.join(settings.tafsir_db_dir, "tafaseer.db")
+    async with _aiosqlite.connect(db_path) as db:
+        async with db.execute("SELECT ID, Name, NameE FROM TafseerName ORDER BY ID") as cur:
+            rows = await cur.fetchall()
+    return [{"id": r[0], "name_ar": r[1], "name_en": r[2]} for r in rows]
+
+
 @app.get(
     "/api/v1/admin/disk-usage",
     summary="Show disk usage of key data directories",
