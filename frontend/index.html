@@ -2027,8 +2027,8 @@
       color: #fff;
     }
 
-    .tafsir-card-header.tafsir-baghawi {
-      background: linear-gradient(135deg, #7c3aed, #6d28d9);
+    .tafsir-card-header.tafsir-sadi {
+      background: linear-gradient(135deg, #0d9488, #0f766e);
       color: #fff;
     }
 
@@ -2037,8 +2037,23 @@
       color: #fff;
     }
 
-    .tafsir-card-header.tafsir-sadi {
-      background: linear-gradient(135deg, #0d9488, #0f766e);
+    .tafsir-card-header.tafsir-baghawi {
+      background: linear-gradient(135deg, #7c3aed, #6d28d9);
+      color: #fff;
+    }
+
+    .tafsir-card-header.tafsir-ashur {
+      background: linear-gradient(135deg, #dc2626, #b91c1c);
+      color: #fff;
+    }
+
+    .tafsir-card-header.tafsir-irab {
+      background: linear-gradient(135deg, #475569, #334155);
+      color: #fff;
+    }
+
+    .tafsir-card-header.tafsir-wasit {
+      background: linear-gradient(135deg, #92400e, #78350f);
       color: #fff;
     }
 
@@ -4540,22 +4555,28 @@
     }
 
     // Canonical display order: Tabari first, Kathir second
-    const TAFSIR_ORDER = ['Al-Tabari', 'Ibn Kathir', 'Al-Baghawi', 'Al-Qurtubi', 'Al-Sadi'];
+    const TAFSIR_ORDER = ["Al-Tabari", "Ibn Kathir", "Al-Sa'di", "Al-Qurtubi", "Al-Baghawi", "Ibn Ashur", "I'rab Quran", "Al-Wasit"];
 
     // Map source name → stable CSS key (no spaces/special chars for element IDs)
     const TAFSIR_KEY = {
-      'Al-Tabari':  'tabari',
-      'Ibn Kathir': 'kathir',
-      'Al-Baghawi': 'baghawi',
-      'Al-Qurtubi': 'qurtubi',
-      'Al-Sadi':    'sadi',
+      'Al-Tabari':   'tabari',
+      'Ibn Kathir':  'kathir',
+      "Al-Sa'di":    'sadi',
+      'Al-Qurtubi':  'qurtubi',
+      'Al-Baghawi':  'baghawi',
+      'Ibn Ashur':   'ashur',
+      "I'rab Quran": 'irab',
+      'Al-Wasit':    'wasit',
     };
     const TAFSIR_HEADER_CLASS = {
       tabari:  'tafsir-tabari',
       kathir:  'tafsir-kathir',
-      baghawi: 'tafsir-baghawi',
-      qurtubi: 'tafsir-qurtubi',
       sadi:    'tafsir-sadi',
+      qurtubi: 'tafsir-qurtubi',
+      baghawi: 'tafsir-baghawi',
+      ashur:   'tafsir-ashur',
+      irab:    'tafsir-irab',
+      wasit:   'tafsir-wasit',
     };
 
     // Preview character limit before "Read more" toggle

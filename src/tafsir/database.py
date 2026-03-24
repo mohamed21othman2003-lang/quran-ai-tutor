@@ -21,12 +21,15 @@ Actual schema (verified against the real database):
         PRIMARY KEY (tafseer, sura, ayah)
     );
 
-Tafseer IDs surfaced by this module:
-    1 = Al-Tabari  (الطبري)
-    2 = Ibn Kathir (ابن كثير)
-    3 = Al-Baghawi (البغوي)
-    5 = Al-Qurtubi (القرطبي)
-    7 = Al-Sadi    (السعدي)
+Tafseer IDs surfaced by this module (all 8 books):
+    1 = Al-Tabari   (الطبري)
+    2 = Ibn Kathir  (ابن كثير)
+    3 = Al-Sa'di    (السعدي)
+    4 = Al-Qurtubi  (القرطبي)
+    5 = Al-Baghawi  (البغوي)
+    6 = Ibn Ashur   (ابن عاشور)
+    7 = I'rab Quran (إعراب القرآن)
+    8 = Al-Wasit    (الوسيط)
 """
 
 import io
@@ -48,16 +51,18 @@ ZIP_URL = (
 
 DB_FILENAME = "tafaseer.db"   # sole file inside the zip
 
-# Tafseer IDs exposed by the public API (verified from TafseerName table).
-# IDs 1, 2, 3, 5, 7 cover 5 major tafsirs from the 8-book tafaseer.db.
+# All 8 tafsir books available in tafaseer.db (IDs 1–8).
 # The semantic index still uses LIMIT 3000 rows (see iter_all_tafsir) to
 # avoid OOM on Railway's 512 MB limit.
 TAFSIR_SOURCES: dict[int, dict[str, str]] = {
-    1: {"name_en": "Al-Tabari",  "name_ar": "\u0627\u0644\u0637\u0628\u0631\u064a"},
-    2: {"name_en": "Ibn Kathir", "name_ar": "\u0627\u0628\u0646 \u0643\u062b\u064a\u0631"},
-    3: {"name_en": "Al-Baghawi", "name_ar": "\u0627\u0644\u0628\u063a\u0648\u064a"},
-    5: {"name_en": "Al-Qurtubi", "name_ar": "\u0627\u0644\u0642\u0631\u0637\u0628\u064a"},
-    7: {"name_en": "Al-Sadi",    "name_ar": "\u0627\u0644\u0633\u0639\u062f\u064a"},
+    1: {"name_en": "Al-Tabari",   "name_ar": "\u0627\u0644\u0637\u0628\u0631\u064a"},
+    2: {"name_en": "Ibn Kathir",  "name_ar": "\u0627\u0628\u0646 \u0643\u062b\u064a\u0631"},
+    3: {"name_en": "Al-Sa'di",    "name_ar": "\u0627\u0644\u0633\u0639\u062f\u064a"},
+    4: {"name_en": "Al-Qurtubi",  "name_ar": "\u0627\u0644\u0642\u0631\u0637\u0628\u064a"},
+    5: {"name_en": "Al-Baghawi",  "name_ar": "\u0627\u0644\u0628\u063a\u0648\u064a"},
+    6: {"name_en": "Ibn Ashur",   "name_ar": "\u0627\u0628\u0646 \u0639\u0627\u0634\u0648\u0631"},
+    7: {"name_en": "I'rab Quran", "name_ar": "\u0625\u0639\u0631\u0627\u0628 \u0627\u0644\u0642\u0631\u0622\u0646"},
+    8: {"name_en": "Al-Wasit",    "name_ar": "\u0627\u0644\u0648\u0633\u064a\u0637"},
 }
 
 
