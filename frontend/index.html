@@ -2518,6 +2518,43 @@
           oninput="autoResize(this)"></textarea>
         <button class="send-btn" id="send-btn" onclick="sendChat()" title="Send">➤</button>
       </div>
+
+      <!-- ── Qiraat & Asbab lookup (inside chat panel) ── -->
+      <div style="margin-top:24px;border-top:1px solid var(--border);padding-top:16px">
+
+        <!-- Qiraat lookup -->
+        <div style="display:flex;gap:12px;align-items:center;justify-content:flex-end;margin-bottom:12px;direction:rtl;flex-wrap:wrap">
+          <input type="number" id="qiraat-surah" min="1" max="114"
+            placeholder="رقم السورة"
+            style="width:130px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;text-align:right;direction:rtl"
+            onkeydown="if(event.key==='Enter') loadQiraat()" />
+          <input type="number" id="qiraat-ayah" min="1"
+            placeholder="رقم الآية"
+            style="width:130px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;text-align:right;direction:rtl"
+            onkeydown="if(event.key==='Enter') loadQiraat()" />
+          <button class="fetch-btn" onclick="loadQiraat()">
+            <span>📖</span><span>عرض القراءات</span>
+          </button>
+        </div>
+        <div id="qiraat-results"></div>
+
+        <!-- Asbab al-Nuzul lookup -->
+        <div style="display:flex;gap:12px;align-items:center;justify-content:flex-end;margin-bottom:12px;direction:rtl;flex-wrap:wrap;margin-top:16px">
+          <input type="number" id="asbab-surah" min="1" max="114"
+            placeholder="رقم السورة"
+            style="width:130px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;text-align:right;direction:rtl"
+            onkeydown="if(event.key==='Enter') loadAsbab()" />
+          <input type="number" id="asbab-ayah" min="1"
+            placeholder="رقم الآية"
+            style="width:130px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;text-align:right;direction:rtl"
+            onkeydown="if(event.key==='Enter') loadAsbab()" />
+          <button class="fetch-btn" onclick="loadAsbab()">
+            <span>📜</span><span>عرض أسباب النزول</span>
+          </button>
+        </div>
+        <div id="asbab-results"></div>
+
+      </div>
     </div>
 
     <!-- ── Rules Panel ── -->
@@ -2833,39 +2870,6 @@
       </div>
     </div>
 
-    </div>
-    <div style="display:flex;gap:12px;align-items:center;justify-content:flex-end;margin-bottom:16px;direction:rtl;flex-wrap:wrap">
-      <input type="number" id="qiraat-surah" min="1" max="114"
-        placeholder="رقم السورة"
-        style="width:130px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;text-align:right;direction:rtl"
-        onkeydown="if(event.key==='Enter') loadQiraat()" />
-      <input type="number" id="qiraat-ayah" min="1"
-        placeholder="رقم الآية"
-        style="width:130px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;text-align:right;direction:rtl"
-        onkeydown="if(event.key==='Enter') loadQiraat()" />
-      <button class="fetch-btn" onclick="loadQiraat()">
-        <span>📖</span><span>عرض القراءات</span>
-      </button>
-    </div>
-    <div id="qiraat-results"></div>
-  </div>
-
-    </div>
-    <div style="display:flex;gap:12px;align-items:center;justify-content:flex-end;margin-bottom:16px;direction:rtl;flex-wrap:wrap">
-      <input type="number" id="asbab-surah" min="1" max="114"
-        placeholder="رقم السورة"
-        style="width:130px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;text-align:right;direction:rtl"
-        onkeydown="if(event.key==='Enter') loadAsbab()" />
-      <input type="number" id="asbab-ayah" min="1"
-        placeholder="رقم الآية"
-        style="width:130px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;text-align:right;direction:rtl"
-        onkeydown="if(event.key==='Enter') loadAsbab()" />
-      <button class="fetch-btn" onclick="loadAsbab()">
-        <span>📜</span><span>عرض أسباب النزول</span>
-      </button>
-    </div>
-    <div id="asbab-results"></div>
-  </div>
   </main>
 
   <!-- ── Demo Panel ── -->
