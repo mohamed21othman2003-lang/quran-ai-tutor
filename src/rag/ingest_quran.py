@@ -129,6 +129,17 @@ def build_quran_collection(quran_data: dict) -> int:
     persist_dir = str(Path(settings.chroma_persist_dir))
     Path(persist_dir).mkdir(parents=True, exist_ok=True)
 
+    try:
+        import chromadb
+
+        client = chromadb.PersistentClient(
+            path=str(Path(settings.chroma_persist_dir))
+        )
+        client.delete_collection("quran_verses")
+        logger.info("Deleted existing quran_verses collection")
+    except Exception as e:
+        logger.warning("Could not delete quran_verses collection: %s", e)
+
     # Collect all ayahs as Documents
     docs: list[Document] = []
     for surah_key in sorted(quran_data.keys(), key=int):
