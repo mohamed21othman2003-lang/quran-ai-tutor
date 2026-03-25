@@ -37,7 +37,7 @@ class QuranVerifier:
 
     def __init__(self) -> None:
         self._embeddings = OpenAIEmbeddings(
-            model="text-embedding-3-small",
+            model="text-embedding-3-large",
             openai_api_key=settings.openai_api_key,
         )
         self._store: Chroma | None = None

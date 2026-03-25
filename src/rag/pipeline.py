@@ -23,7 +23,7 @@ class RAGPipeline:
 
     def __init__(self) -> None:
         self.embeddings = OpenAIEmbeddings(
-            model="text-embedding-3-small",
+            model="text-embedding-3-large",
             openai_api_key=settings.openai_api_key,
         )
         self.vector_store: Chroma | None = None
