@@ -57,7 +57,7 @@ class AyahSearchResponse(BaseModel):
 # Query expansion
 # ------------------------------------------------------------------
 
-async def _expand_query(query: str, language: str) -> str:
+async def _expand_query(query: str, _language: str) -> str:
     """Translate a conceptual query into Quranic Arabic vocabulary via GPT.
 
     Arabic embeddings score significantly lower than English ones for the same
@@ -70,20 +70,35 @@ async def _expand_query(query: str, language: str) -> str:
         max_tokens=200,
         openai_api_key=settings.openai_api_key,
     )
-    lang_note = "Arabic" if language == "ar" else "English"
-    prompt = f"""You are a Quran scholar. A user is searching for Quran verses.
+    prompt = f"""You are a Quran scholar helping with semantic search.
 
 User query: "{query}"
-Query language: {lang_note}
 
-Rewrite this query as a short Arabic Quranic phrase that would appear \
-directly in the Quran text. Focus on the root words and Quranic vocabulary.
-Return ONLY the Arabic search phrase, nothing else. No explanation.
+Your task: rewrite this query into Arabic words/phrases that would
+most likely appear in the ACTUAL TEXT of the Quran, to maximize
+semantic search accuracy.
+
+Rules:
+1. If the query is about a Quranic event or battle (غزوة بدر, هجرة,
+   فتح مكة etc.) → output the Surah name and key Arabic words from
+   that context (e.g. for بدر → "يوم التقى الجمعان سورة الأنفال")
+2. If the query is about a concept (الصبر, الرزق, الرحمة) → output
+   Quranic vocabulary for that concept
+3. If the query is a direct Arabic Quranic phrase → return it as-is
+4. If the query is in English → translate to Quranic Arabic vocabulary
+5. NEVER output abstract or theological expansions unrelated to the
+   original query intent
+
+Return ONLY the Arabic search phrase. No explanation. No punctuation
+beyond what appears in the Quran.
+
 Examples:
-- "patience in hardship" \u2192 "\u0627\u0635\u0628\u0631\u0648\u0627 \u0625\u0646 \u0627\u0644\u0644\u0647 \u0645\u0639 \u0627\u0644\u0635\u0627\u0628\u0631\u064a\u0646"
-- "\u0627\u0644\u0635\u0628\u0631 \u0641\u064a \u0627\u0644\u0634\u062f\u0629" \u2192 "\u0625\u0646\u0645\u0627 \u064a\u0648\u0641\u0649 \u0627\u0644\u0635\u0627\u0628\u0631\u0648\u0646 \u0623\u062c\u0631\u0647\u0645 \u0628\u063a\u064a\u0631 \u062d\u0633\u0627\u0628"
-- "mercy and forgiveness" \u2192 "\u0625\u0646 \u0627\u0644\u0644\u0647 \u063a\u0641\u0648\u0631 \u0631\u062d\u064a\u0645"
-- "\u0622\u064a\u0627\u062a \u0627\u0644\u0631\u0632\u0642 \u0648\u0627\u0644\u0645\u0627\u0644" \u2192 "\u0648\u0645\u0627 \u0645\u0646 \u062f\u0627\u0628\u0629 \u0641\u064a \u0627\u0644\u0623\u0631\u0636 \u0625\u0644\u0627 \u0639\u0644\u0649 \u0627\u0644\u0644\u0647 \u0631\u0632\u0642\u0647\u0627"
+- "غزوة بدر" → "يوم التقى الجمعان الأنفال إذ يريكموهم الله"
+- "battle of badr" → "يوم التقى الجمعان الأنفال إذ يريكموهم الله"
+- "الصبر في الشدة" → "اصبروا إن الله مع الصابرين"
+- "mercy forgiveness" → "إن الله غفور رحيم وسع كل شيء رحمة"
+- "آيات الرزق" → "وما من دابة في الأرض إلا على الله رزقها"
+- "يوم القيامة" → "يوم القيامة"
 """
     try:
         response = await llm.ainvoke([HumanMessage(content=prompt)])
