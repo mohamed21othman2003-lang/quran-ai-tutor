@@ -56,7 +56,7 @@ QURAN_JSON_URL = "https://raw.githubusercontent.com/risan/quran-json/master/data
 QURAN_JSON_PATH = Path("data/knowledge/quran_full.json")
 QURAN_DIR = Path("data/knowledge/quran")
 COLLECTION_NAME = "quran_verses"
-AYAH_GROUP_SIZE = 5   # ayahs per markdown chunk
+AYAH_GROUP_SIZE = 1   # one ayah per chunk — ensures semantic search matches individual verses
 
 
 # ------------------------------------------------------------------

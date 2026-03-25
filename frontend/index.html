@@ -4072,7 +4072,7 @@
       try {
         const data = await apiPost('/api/v1/search/ayah', { query, language: lang, top_k: topK });
         // Filter results below 40% relevance
-        const filtered = (data.results || []).filter(r => r.relevance >= 0.40);
+        const filtered = (data.results || []).filter(r => r.relevance >= 0.20);
         if (!filtered.length) {
           const noMsg = lang === 'ar'
             ? 'لم يتم العثور على آيات ذات صلة. حاول صياغة البحث بشكل مختلف.'
