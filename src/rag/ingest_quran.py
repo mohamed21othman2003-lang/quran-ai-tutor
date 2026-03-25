@@ -123,7 +123,7 @@ def build_quran_collection(quran_data: dict) -> int:
     the exact verse during voice verification.
     """
     embeddings = OpenAIEmbeddings(
-        model="text-embedding-3-small",
+        model="text-embedding-3-large",
         openai_api_key=settings.openai_api_key,
     )
     persist_dir = str(Path(settings.chroma_persist_dir))
